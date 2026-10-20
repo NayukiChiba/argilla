@@ -6,6 +6,7 @@ import { GetDatasetsUseCase } from "@/v1/domain/usecases/get-datasets-use-case";
 import { GetWorkspacesUseCase } from "~/v1/domain/usecases/get-workspaces-use-case";
 import { useDatasets } from "~/v1/infrastructure/storage/DatasetsStorage";
 import { useRole } from "~/v1/infrastructure/services/useRole";
+import { HUB_REPOSITORY_ERRORS } from "~/v1/infrastructure/repositories/HubRepository";
 
 export const useHomeViewModel = () => {
   const workspaces = ref<any[]>([]);
@@ -28,11 +29,20 @@ export const useHomeViewModel = () => {
   });
 
   const getNewDatasetByRepoId = async (repositoryId: string) => {
+    error.value = "";
     try {
       await getDatasetCreationUseCase.execute(repositoryId);
       goToImportDatasetFromHub(repositoryId);
-    } catch {
-      error.value = "datasetCreation.cantLoadRepository";
+    } catch (cause: any) {
+      const messages = {
+        [HUB_REPOSITORY_ERRORS.NOT_EXIST]: "datasetCreation.cantLoadRepository",
+        [HUB_REPOSITORY_ERRORS.AUTHENTICATION_REQUIRED]:
+          "datasetCreation.hubAuthenticationRequired",
+        [HUB_REPOSITORY_ERRORS.UNAVAILABLE]: "datasetCreation.hubUnavailable",
+      };
+
+      error.value =
+        messages[cause.response] ?? "datasetCreation.hubUnavailable";
     }
   };
 

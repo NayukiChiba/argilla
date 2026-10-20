@@ -49,9 +49,7 @@
             ></BaseButton>
           </BaseInputContainer>
         </transition>
-        <span v-if="error" class="import-from-hub__error">{{
-          $t("datasetCreation.cantLoadRepository")
-        }}</span>
+        <span v-if="error" class="import-from-hub__error">{{ $t(error) }}</span>
       </form>
     </template>
   </div>

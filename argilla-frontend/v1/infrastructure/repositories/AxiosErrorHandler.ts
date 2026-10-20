@@ -8,6 +8,8 @@ export const loadErrorHandler = (context: Context) => {
   const notification = useNotifications();
 
   axios.onError((error) => {
+    if ((error.config as any)?.skipGlobalErrorHandler) throw error;
+
     const { status, data } = error.response ?? {};
 
     notification.clear();
