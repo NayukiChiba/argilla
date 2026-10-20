@@ -29,4 +29,9 @@ ARGILLA_PASSWORD=12345678
 ARGILLA_API_KEY=owner.apikey
 ARGILLA_WORKSPACE=admin
 BACKGROUND_NUM_WORKERS=2
+# Required when importing gated or private Hugging Face datasets.
+HF_TOKEN=hf_your_read_token
 ```
+
+The same `HF_TOKEN` is available to the web server and background worker. The
+server uses it for dataset previews, and the worker uses it for the import job.

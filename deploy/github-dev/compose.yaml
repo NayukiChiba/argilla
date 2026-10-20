@@ -5,6 +5,7 @@ x-argilla-environment: &argilla-environment
   ARGILLA_ELASTICSEARCH: http://elasticsearch:9200
   ARGILLA_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/argilla
   ARGILLA_REDIS_URL: redis://redis:6379/0
+  HF_TOKEN: ${HF_TOKEN:-}
   HF_HUB_DISABLE_TELEMETRY: "1"
 
 services:
