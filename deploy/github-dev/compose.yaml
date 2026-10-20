@@ -1,0 +1,135 @@
+name: argilla-v2
+
+x-argilla-environment: &argilla-environment
+  ARGILLA_HOME_PATH: /var/lib/argilla
+  ARGILLA_ELASTICSEARCH: http://elasticsearch:9200
+  ARGILLA_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/argilla
+  ARGILLA_REDIS_URL: redis://redis:6379/0
+  HF_HUB_DISABLE_TELEMETRY: "1"
+
+services:
+  argilla:
+    image: ${ARGILLA_IMAGE:-argilla/argilla-server:v2.8.0}
+    container_name: argilla-v2-server
+    restart: unless-stopped
+    ports:
+      - "${ARGILLA_BIND_ADDRESS:-127.0.0.1}:${ARGILLA_PORT:-6900}:6900"
+    environment:
+      <<: *argilla-environment
+      USERNAME: ${ARGILLA_USERNAME:-owner}
+      PASSWORD: ${ARGILLA_PASSWORD:-12345678}
+      API_KEY: ${ARGILLA_API_KEY:-owner.apikey}
+      WORKSPACE: ${ARGILLA_WORKSPACE:-admin}
+    volumes:
+      - argilladata:/var/lib/argilla
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6900/api/v1/version')"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - argilla
+
+  worker:
+    image: ${ARGILLA_IMAGE:-argilla/argilla-server:v2.8.0}
+    container_name: argilla-v2-worker
+    restart: unless-stopped
+    environment:
+      <<: *argilla-environment
+      BACKGROUND_NUM_WORKERS: ${BACKGROUND_NUM_WORKERS:-2}
+    command: sh -c 'python -m argilla_server worker --num-workers $${BACKGROUND_NUM_WORKERS}'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - argilla
+
+  postgres:
+    image: postgres:14
+    container_name: argilla-v2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: argilla
+    volumes:
+      - postgresdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d argilla"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - argilla
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: argilla-v2-elasticsearch
+    restart: unless-stopped
+    environment:
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      node.name: elasticsearch
+      cluster.name: es-argilla-local
+      discovery.type: single-node
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      xpack.security.enabled: "false"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks:
+      - argilla
+
+  redis:
+    image: redis:7
+    container_name: argilla-v2-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - argilla
+
+networks:
+  argilla:
+    name: argilla-v2-network
+    driver: bridge
+
+volumes:
+  argilladata:
+    name: argilla-v2-app
+  elasticdata:
+    name: argilla-v2-elasticsearch
+  postgresdata:
+    name: argilla-v2-postgres
+  redisdata:
+    name: argilla-v2-redis
