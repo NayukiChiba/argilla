@@ -27,7 +27,7 @@ from PIL import Image
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
-from huggingface_hub import HfApi, DatasetCard, DatasetCardData
+from huggingface_hub import HfApi, DatasetCard, DatasetCardData, get_token
 from datasets import Dataset as HFDataset, NamedSplit, load_dataset, features
 
 from argilla_server.contexts import info
@@ -62,7 +62,7 @@ HUB_DATASET_CARD_TEMPLATE_PATH = os.path.join(Path(__file__).parent, "hub_templa
 
 class HubDataset:
     def __init__(self, name: str, subset: str, split: str, mapping: HubDatasetMapping):
-        self.dataset = load_dataset(path=name, name=subset, split=split, streaming=True)
+        self.dataset = load_dataset(path=name, name=subset, split=split, streaming=True, token=get_token())
         self.split = split
         self.mapping = mapping
         self.mapping_feature_names = mapping.sources

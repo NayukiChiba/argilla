@@ -35,6 +35,26 @@ from tests.factories import (
 
 @pytest.mark.asyncio
 class TestHubDataset:
+    def test_hub_dataset_uses_server_token(self, mocker):
+        get_token = mocker.patch("argilla_server.contexts.hub.get_token", return_value="hf-secret-token")
+        load_dataset = mocker.patch("argilla_server.contexts.hub.load_dataset")
+
+        HubDataset(
+            name="owner/gated-dataset",
+            subset="default",
+            split="train",
+            mapping=HubDatasetMapping(fields=[HubDatasetMappingItem(source="text", target="text")]),
+        )
+
+        get_token.assert_called_once_with()
+        load_dataset.assert_called_once_with(
+            path="owner/gated-dataset",
+            name="default",
+            split="train",
+            streaming=True,
+            token="hf-secret-token",
+        )
+
     async def test_hub_dataset_import_to(self, db: AsyncSession, mock_search_engine: SearchEngine):
         dataset = await DatasetFactory.create(status=DatasetStatus.ready)
 
