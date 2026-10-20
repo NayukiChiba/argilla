@@ -330,6 +330,10 @@ export default {
     importData: "データをインポート",
     addRecords: "レコードを追加",
     cantLoadRepository: "Hugging Faceにデータセットが見つかりません",
+    hubAuthenticationRequired:
+      "このデータセットにはHugging Face認証が必要です。ArgillaサーバーにHF_TOKENを設定してください。",
+    hubUnavailable:
+      "Hugging Faceを利用できません。しばらくしてからもう一度お試しください。",
     none: "該当なし",
     noWorkspaces:
       "こちらの<a target='_blank' href='https://docs.argilla.io/latest/how_to_guides/workspace/#create-a-new-workspace'>ガイド</a>にしたがってワークスペースを作成してください",

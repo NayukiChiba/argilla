@@ -324,8 +324,11 @@ export default {
     preview: "Vista previa",
     importData: "Importar datos",
     addRecords: "Agregar registros",
-    cantLoadRepository:
-      "No se pudo encontrar o acceder al dataset en Hugging Face",
+    cantLoadRepository: "No se encontró el dataset en Hugging Face",
+    hubAuthenticationRequired:
+      "Este dataset requiere autenticación de Hugging Face. Configura HF_TOKEN en el servidor de Argilla.",
+    hubUnavailable:
+      "Hugging Face no está disponible. Inténtalo de nuevo más tarde.",
     none: "Ninguno",
     noWorkspaces:
       "Por favor, sigue <a target='_blank' href='https://docs.argilla.io/latest/how_to_guides/workspace/#create-a-new-workspace'>esta guía</a> para crear un espacio de trabajo",

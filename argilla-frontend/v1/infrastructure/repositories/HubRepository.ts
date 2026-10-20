@@ -4,28 +4,35 @@ import { DatasetCreation } from "~/v1/domain/entities/hub/DatasetCreation";
 
 export const enum HUB_REPOSITORY_ERRORS {
   NOT_EXIST = "ERROR_FETCHING_DATASET",
+  AUTHENTICATION_REQUIRED = "HUGGING_FACE_AUTHENTICATION_REQUIRED",
+  UNAVAILABLE = "HUGGING_FACE_UNAVAILABLE",
 }
 
 export class HubRepository {
   private axios: NuxtAxiosInstance;
   constructor(axios: PublicNuxtAxiosInstance) {
-    this.axios = axios.makePublic({
-      enableErrors: false,
-    });
+    this.axios = axios;
   }
 
   async getDatasetCreation(repoId: string): Promise<any> {
     try {
-      const { data } = await this.axios.get(
-        `https://datasets-server.huggingface.co/info?dataset=${encodeURIComponent(
-          repoId
-        )}`
-      );
+      const { data } = await this.axios.get("/v1/hub/datasets/info", {
+        params: { dataset: repoId },
+        skipGlobalErrorHandler: true,
+      } as any);
 
       return data.dataset_info;
-    } catch (e) {
+    } catch (e: any) {
+      const status = e.response?.status;
+      const response =
+        status === 401 || status === 403
+          ? HUB_REPOSITORY_ERRORS.AUTHENTICATION_REQUIRED
+          : status === 404
+          ? HUB_REPOSITORY_ERRORS.NOT_EXIST
+          : HUB_REPOSITORY_ERRORS.UNAVAILABLE;
+
       throw {
-        response: HUB_REPOSITORY_ERRORS.NOT_EXIST,
+        response,
       };
     }
   }
@@ -36,16 +43,14 @@ export class HubRepository {
     split: string
   ): Promise<any> {
     // Example call https://datasets-server.huggingface.co/statistics?dataset=derek-thomas/ScienceQA&config=default&split=train
-    const { data } = await this.axios.get(
-      "https://datasets-server.huggingface.co/statistics",
-      {
-        params: {
-          dataset: encodeURIComponent(repoId),
-          config: subset,
-          split,
-        },
-      }
-    );
+    const { data } = await this.axios.get("/v1/hub/datasets/statistics", {
+      params: {
+        dataset: repoId,
+        config: subset,
+        split,
+      },
+      skipGlobalErrorHandler: true,
+    } as any);
 
     const distributions = [];
     for (const columnStats of data.statistics) {
@@ -82,13 +87,14 @@ export class HubRepository {
   async getFirstRecord(dataset: DatasetCreation): Promise<any> {
     try {
       const { repoId, selectedSubset } = dataset;
-      const { data } = await this.axios.get(
-        `https://datasets-server.huggingface.co/first-rows?dataset=${encodeURIComponent(
-          repoId
-        )}&split=${selectedSubset.selectedSplit.name}&config=${
-          selectedSubset.name
-        }`
-      );
+      const { data } = await this.axios.get("/v1/hub/datasets/first-rows", {
+        params: {
+          dataset: repoId,
+          split: selectedSubset.selectedSplit.name,
+          config: selectedSubset.name,
+        },
+        skipGlobalErrorHandler: true,
+      } as any);
 
       return data.rows[0].row;
     } catch {
