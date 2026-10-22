@@ -59,10 +59,7 @@ DATA_URL_DEFAULT_IMAGE_MIMETYPE = "image/png"
 HUB_RECORDS_YIELD_PER = 100
 HUB_DATASET_CARD_TEMPLATE_PATH = os.path.join(Path(__file__).parent, "hub_templates", "README.md.jinja2")
 
-CHAT_FIELD_ALIASES = (
-    ("role", "content"),
-    ("from", "value"),
-)
+CUSTOM_FIELD_RAW_VALUE_KEY = "__argilla_raw_value__"
 
 
 class HubDataset:
@@ -165,36 +162,12 @@ class HubDataset:
 
             if field.is_text and value is not None:
                 value = str(value)
-            elif field.is_chat:
-                value = self._normalize_chat_field_value(value)
+            elif field.is_custom:
+                value = {CUSTOM_FIELD_RAW_VALUE_KEY: value}
 
             fields[field.name] = value
 
         return fields
-
-    @staticmethod
-    def _normalize_chat_field_value(value: Any) -> Any:
-        if not isinstance(value, list):
-            return value
-
-        normalized_messages = []
-        for message in value:
-            if not isinstance(message, dict):
-                normalized_messages.append(message)
-                continue
-
-            normalized_message = message
-            for role_key, content_key in CHAT_FIELD_ALIASES:
-                if role_key in message and content_key in message:
-                    normalized_message = {
-                        "role": message[role_key],
-                        "content": message[content_key],
-                    }
-                    break
-
-            normalized_messages.append(normalized_message)
-
-        return normalized_messages
 
     def _row_metadata(self, row: dict, dataset: Dataset) -> dict:
         metadata = {}
