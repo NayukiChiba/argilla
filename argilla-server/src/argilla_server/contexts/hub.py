@@ -17,6 +17,7 @@ import os
 import base64
 import json
 
+import httpx
 from uuid import uuid4
 from pathlib import Path
 from typing import Any, Optional, List
@@ -59,16 +60,104 @@ DATA_URL_DEFAULT_IMAGE_MIMETYPE = "image/png"
 HUB_RECORDS_YIELD_PER = 100
 HUB_DATASET_CARD_TEMPLATE_PATH = os.path.join(Path(__file__).parent, "hub_templates", "README.md.jinja2")
 
+DATASETS_SERVER_URL = "https://datasets-server.huggingface.co"
+DATASETS_SERVER_TIMEOUT = 30.0
+JSON_FEATURE_ID = "argilla_json"
+
 CUSTOM_FIELD_RAW_VALUE_KEY = "__argilla_raw_value__"
 
 
 class HubDataset:
     def __init__(self, name: str, subset: str, split: str, mapping: HubDatasetMapping):
-        self.dataset = load_dataset(path=name, name=subset, split=split, streaming=True, token=get_token())
+        token = get_token()
+        try:
+            self.dataset = load_dataset(path=name, name=subset, split=split, streaming=True, token=token)
+        except (TypeError, ValueError) as error:
+            try:
+                self.dataset = self._load_dataset_viewer_parquet(name, subset, split, token, require_json=True)
+            except (httpx.HTTPError, KeyError, TypeError, ValueError):
+                raise error
+
+        if self._contains_json_feature(self.features):
+            self.dataset = self._load_dataset_viewer_parquet(name, subset, split, token)
         self.split = split
         self.mapping = mapping
         self.mapping_feature_names = mapping.sources
         self.row_idx = RESET_ROW_IDX
+
+    @classmethod
+    def _contains_json_feature(cls, feature: Any) -> bool:
+        if feature.__class__.__name__ == "Json":
+            return True
+        if isinstance(feature, dict):
+            if feature.get("_type") == "Json":
+                return True
+            return any(cls._contains_json_feature(value) for value in feature.values())
+        if isinstance(feature, (list, tuple)):
+            return any(cls._contains_json_feature(value) for value in feature)
+        nested_feature = (
+            getattr(feature, "feature", None) if feature.__class__.__module__.startswith("datasets.features") else None
+        )
+        return nested_feature is not None and cls._contains_json_feature(nested_feature)
+
+    @classmethod
+    def _replace_json_features(cls, feature: Any) -> Any:
+        if isinstance(feature, dict):
+            if feature.get("_type") == "Json":
+                return {"dtype": "string", "id": JSON_FEATURE_ID, "_type": "Value"}
+            return {key: cls._replace_json_features(value) for key, value in feature.items()}
+        if isinstance(feature, list):
+            return [cls._replace_json_features(value) for value in feature]
+        return feature
+
+    @classmethod
+    def _load_dataset_viewer_parquet(
+        cls,
+        name: str,
+        subset: str,
+        split: str,
+        token: Optional[str],
+        require_json: bool = False,
+    ):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        info_response = httpx.get(
+            f"{DATASETS_SERVER_URL}/info",
+            params={"dataset": name},
+            headers=headers,
+            timeout=DATASETS_SERVER_TIMEOUT,
+        )
+        info_response.raise_for_status()
+        feature_schema = info_response.json()["dataset_info"][subset]["features"]
+        if require_json and not cls._contains_json_feature(feature_schema):
+            raise ValueError("The dataset does not contain JSON features")
+
+        parquet_response = httpx.get(
+            f"{DATASETS_SERVER_URL}/parquet",
+            params={"dataset": name},
+            headers=headers,
+            timeout=DATASETS_SERVER_TIMEOUT,
+        )
+        parquet_response.raise_for_status()
+
+        parquet_urls = [
+            parquet_file["url"]
+            for parquet_file in parquet_response.json().get("parquet_files", [])
+            if parquet_file.get("config") == subset and parquet_file.get("split") == split
+        ]
+        if not parquet_urls:
+            raise ValueError(
+                f"No converted Parquet files found for Hugging Face dataset {name!r}, "
+                f"subset {subset!r}, split {split!r}"
+            )
+
+        return load_dataset(
+            path="parquet",
+            data_files={split: parquet_urls},
+            split=split,
+            streaming=True,
+            token=token,
+            features=features.Features.from_dict(cls._replace_json_features(feature_schema)),
+        )
 
     @property
     def features(self) -> Optional[dict]:
@@ -132,6 +221,13 @@ class HubDataset:
                 return feature.int2str(value)
         elif isinstance(feature, features.Sequence):
             return [self._cast_feature_value(feature.feature, v) for v in value]
+        elif isinstance(feature, (list, tuple)) and len(feature) == 1:
+            return [self._cast_feature_value(feature[0], v) for v in value]
+        elif isinstance(feature, features.Value) and feature.id == JSON_FEATURE_ID:
+            try:
+                return json.loads(value)
+            except (TypeError, json.JSONDecodeError):
+                return value
         elif isinstance(feature, features.Image):
             if value is None:
                 return None

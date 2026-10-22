@@ -59,6 +59,85 @@ class TestHubDataset:
             token="hf-secret-token",
         )
 
+    def test_hub_dataset_uses_converted_parquet_for_json_features(self, mocker):
+        token = "hf-secret-token"
+        mocker.patch("argilla_server.contexts.hub.get_token", return_value=token)
+        parquet_dataset = mocker.Mock(features={"prompt": features.Value("string")})
+        load_dataset = mocker.patch(
+            "argilla_server.contexts.hub.load_dataset",
+            side_effect=[TypeError("Feature type 'Json' not found"), parquet_dataset],
+        )
+        info_response = mocker.Mock()
+        info_response.json.return_value = {
+            "dataset_info": {
+                "default": {
+                    "features": {
+                        "prompt": {"dtype": "string", "_type": "Value"},
+                        "messages": [{"_type": "Json"}],
+                        "metadata": {"_type": "Json"},
+                    }
+                }
+            }
+        }
+        parquet_response = mocker.Mock()
+        parquet_response.json.return_value = {
+            "parquet_files": [
+                {
+                    "config": "default",
+                    "split": "train",
+                    "url": "https://huggingface.co/datasets/owner/traces/train.parquet",
+                },
+                {
+                    "config": "other",
+                    "split": "train",
+                    "url": "https://huggingface.co/datasets/owner/traces/other.parquet",
+                },
+            ]
+        }
+        get = mocker.patch(
+            "argilla_server.contexts.hub.httpx.get",
+            side_effect=[info_response, parquet_response],
+        )
+
+        hub_dataset = HubDataset(
+            name="owner/traces",
+            subset="default",
+            split="train",
+            mapping=HubDatasetMapping(fields=[HubDatasetMappingItem(source="prompt", target="prompt")]),
+        )
+
+        assert get.call_count == 2
+        info_response.raise_for_status.assert_called_once_with()
+        parquet_response.raise_for_status.assert_called_once_with()
+        load_dataset.assert_has_calls(
+            [
+                mocker.call(
+                    path="owner/traces",
+                    name="default",
+                    split="train",
+                    streaming=True,
+                    token=token,
+                ),
+                mocker.call(
+                    path="parquet",
+                    data_files={
+                        "train": ["https://huggingface.co/datasets/owner/traces/train.parquet"],
+                    },
+                    split="train",
+                    streaming=True,
+                    token=token,
+                    features=features.Features(
+                        {
+                            "prompt": features.Value("string"),
+                            "messages": [features.Value("string", id="argilla_json")],
+                            "metadata": features.Value("string", id="argilla_json"),
+                        }
+                    ),
+                ),
+            ]
+        )
+        assert hub_dataset.dataset is parquet_dataset
+
     async def test_hub_dataset_import_to(self, db: AsyncSession, mock_search_engine: SearchEngine):
         dataset = await DatasetFactory.create(status=DatasetStatus.ready)
 
@@ -424,6 +503,19 @@ class TestHubDataset:
         )
 
         assert value.startswith("data:image/png;base64,")
+
+    def test_cast_feature_value_decodes_json_features(self):
+        hub_dataset = HubDataset.__new__(HubDataset)
+        json_feature = features.Features.from_dict(
+            {"messages": HubDataset._replace_json_features([{"_type": "Json"}])}
+        )["messages"]
+
+        value = hub_dataset._cast_feature_value(
+            json_feature,
+            ['{"role":"user","content":"Review the alert."}'],
+        )
+
+        assert value == [{"role": "user", "content": "Review the alert."}]
 
     async def test_hub_dataset_import_to_with_image_fields(self, db: AsyncSession, mock_search_engine: SearchEngine):
         dataset = await DatasetFactory.create(status=DatasetStatus.ready)
