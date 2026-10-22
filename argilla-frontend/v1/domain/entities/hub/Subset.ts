@@ -7,12 +7,32 @@ import { QuestionCreation } from "./QuestionCreation";
 type Structure = {
   name: string;
   options?: string[];
-  role?: string;
-  content?: string;
-  structure?: Structure[];
+  isChat?: boolean;
   kindObject?: "Value" | "Image" | "ClassLabel" | "Sequence";
   type?: "string" | MetadataTypes;
   feature?: Feature;
+};
+
+const CHAT_FIELD_ALIASES = [
+  { role: "role", content: "content" },
+  { role: "from", content: "value" },
+] as const;
+
+const isStringFeature = (feature: unknown) => {
+  if (!feature || typeof feature !== "object") return false;
+
+  const { _type, dtype } = feature as Feature;
+  return _type === "Value" && dtype === "string";
+};
+
+const isChatFeature = (feature: unknown) => {
+  if (!feature || typeof feature !== "object") return false;
+
+  const properties = feature as Record<string, unknown>;
+  return CHAT_FIELD_ALIASES.some(
+    ({ role, content }) =>
+      isStringFeature(properties[role]) && isStringFeature(properties[content])
+  );
 };
 
 export class Subset {
@@ -50,20 +70,9 @@ export class Subset {
           continue;
         }
 
-        const { role, content } = value[0];
         this.structures.push({
           name,
-          structure: value.map((v) => {
-            const [key, value] = Object.entries<any>(v)[0];
-
-            return {
-              name: key,
-              kindObject: value._type,
-              type: value.dtype,
-              role,
-              content,
-            };
-          }),
+          isChat: isChatFeature(listFeature),
         });
       } else if (value.feature) {
         this.structures.push({
@@ -160,12 +169,7 @@ export class Subset {
         return "text";
 
       if (structure.kindObject === "Image") return "image";
-      if (
-        structure.structure?.length > 0 &&
-        structure.structure[0].content &&
-        structure.structure[0].role
-      )
-        return "chat";
+      if (structure.isChat) return "chat";
     };
 
     const field = FieldCreation.from(

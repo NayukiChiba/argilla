@@ -164,6 +164,40 @@ describe("DatasetCreation", () => {
       expect(chatField.required).toBeFalsy();
     });
 
+    it("create a chat field from ShareGPT messages", () => {
+      const builder = new DatasetCreationBuilder("FAKE", {
+        default: {
+          ...datasetInfo.default,
+          features: {
+            conversations: [
+              {
+                from: {
+                  dtype: "string",
+                  _type: "Value",
+                },
+                value: {
+                  dtype: "string",
+                  _type: "Value",
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const datasetCreation = builder.build();
+      const chatField = datasetCreation.fields[0];
+
+      expect(chatField.name).toBe("conversations");
+      expect(chatField.type.isChatType).toBeTruthy();
+      expect(datasetCreation.mappings.fields).toEqual([
+        {
+          source: "conversations",
+          target: "conversations",
+        },
+      ]);
+    });
+
     it("create a text field from a list of strings", () => {
       const builder = new DatasetCreationBuilder("FAKE", {
         default: {
