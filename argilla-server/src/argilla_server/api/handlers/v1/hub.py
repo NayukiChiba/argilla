@@ -93,3 +93,25 @@ async def get_dataset_first_rows(
 ) -> Response:
     await _authorize_hub_access(current_user)
     return await _proxy_dataset_viewer("first-rows", {"dataset": dataset, "config": config, "split": split})
+
+
+@router.get("/rows")
+async def get_dataset_rows(
+    dataset: str = Query(..., min_length=1),
+    config: str = Query(..., min_length=1),
+    split: str = Query(..., min_length=1),
+    offset: int = Query(0, ge=0),
+    length: int = Query(1, ge=1, le=100),
+    current_user: User = Security(auth.get_current_user),
+) -> Response:
+    await _authorize_hub_access(current_user)
+    return await _proxy_dataset_viewer(
+        "rows",
+        {
+            "dataset": dataset,
+            "config": config,
+            "split": split,
+            "offset": str(offset),
+            "length": str(length),
+        },
+    )
