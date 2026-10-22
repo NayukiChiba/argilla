@@ -383,6 +383,31 @@ class TestHubDataset:
             }
         }
 
+    def test_batch_index_to_row_preserves_values_without_features(self, mocker):
+        hub_dataset = HubDataset.__new__(HubDataset)
+        hub_dataset.dataset = mocker.Mock(features=None)
+        hub_dataset.mapping = HubDatasetMapping(
+            fields=[
+                HubDatasetMappingItem(source="system", target="system"),
+                HubDatasetMappingItem(source="assistant", target="assistant"),
+            ]
+        )
+        hub_dataset.mapping_feature_names = hub_dataset.mapping.sources
+
+        row = hub_dataset._batch_index_to_row(
+            {
+                "system": ["You are a security assistant."],
+                "assistant": ["Review the alert."],
+                "ignored": ["not mapped"],
+            },
+            0,
+        )
+
+        assert row == {
+            "system": "You are a security assistant.",
+            "assistant": "Review the alert.",
+        }
+
     async def test_hub_dataset_import_to_with_image_fields(self, db: AsyncSession, mock_search_engine: SearchEngine):
         dataset = await DatasetFactory.create(status=DatasetStatus.ready)
 

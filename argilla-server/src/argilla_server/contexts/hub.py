@@ -71,7 +71,7 @@ class HubDataset:
         self.row_idx = RESET_ROW_IDX
 
     @property
-    def features(self) -> dict:
+    def features(self) -> Optional[dict]:
         return self.dataset.features
 
     def take(self, n: int) -> Self:
@@ -118,7 +118,9 @@ class HubDataset:
             if not feature_name in self.mapping_feature_names:
                 continue
 
-            row[feature_name] = self._cast_feature_value(self.features[feature_name], values[index])
+            # Streaming datasets backed by raw JSON may not expose a schema.
+            feature = self.features.get(feature_name) if self.features else None
+            row[feature_name] = self._cast_feature_value(feature, values[index])
 
         return row
 
