@@ -12,8 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import io
+
 import pytest
 
+from datasets import features
+from PIL import Image
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -407,6 +411,19 @@ class TestHubDataset:
             "system": "You are a security assistant.",
             "assistant": "Review the alert.",
         }
+
+    def test_cast_feature_value_decodes_batched_image(self):
+        buffer = io.BytesIO()
+        Image.new("RGB", (1, 1), color="red").save(buffer, format="PNG")
+
+        hub_dataset = HubDataset.__new__(HubDataset)
+
+        value = hub_dataset._cast_feature_value(
+            features.Image(),
+            {"bytes": buffer.getvalue(), "path": None},
+        )
+
+        assert value.startswith("data:image/png;base64,")
 
     async def test_hub_dataset_import_to_with_image_fields(self, db: AsyncSession, mock_search_engine: SearchEngine):
         dataset = await DatasetFactory.create(status=DatasetStatus.ready)
