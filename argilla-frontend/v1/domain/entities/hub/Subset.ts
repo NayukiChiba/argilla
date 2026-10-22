@@ -35,6 +35,21 @@ export class Subset {
 
     for (const [name, value] of Object.entries<Feature>(datasetInfo.features)) {
       if (Array.isArray(value)) {
+        const listFeature = value[0];
+
+        if (
+          value.length === 1 &&
+          listFeature?._type === "Value" &&
+          listFeature.dtype === "string"
+        ) {
+          this.structures.push({
+            name,
+            kindObject: listFeature._type,
+            type: listFeature.dtype,
+          });
+          continue;
+        }
+
         const { role, content } = value[0];
         this.structures.push({
           name,
