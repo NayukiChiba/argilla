@@ -58,8 +58,9 @@
           <template #left>
             <div class="dataset-config__preview">
               <iframe
-                v-if="!!dataset.repoId"
-                :src="`https://huggingface.co/datasets/${dataset.repoId}/embed/viewer/ParaphraseRC/train`"
+                v-if="datasetViewerUrl"
+                :key="datasetViewerUrl"
+                :src="datasetViewerUrl"
                 frameborder="0"
                 width="100%"
                 height="500px"
@@ -92,6 +93,30 @@ export default {
   },
   mounted() {
     this.getFirstRecord(this.dataset);
+  },
+  computed: {
+    datasetViewerUrl() {
+      const subset = this.dataset.selectedSubset;
+      const split = subset?.selectedSplit?.name;
+      if (!this.dataset.repoId || !subset?.name || !split) return null;
+
+      const repository = this.dataset.repoId
+        .split("/")
+        .map(encodeURIComponent)
+        .join("/");
+
+      return `https://huggingface.co/datasets/${repository}/embed/viewer/${encodeURIComponent(
+        subset.name
+      )}/${encodeURIComponent(split)}`;
+    },
+  },
+  watch: {
+    "dataset.selectedSubset.name"() {
+      this.getFirstRecord(this.dataset);
+    },
+    "dataset.selectedSubset.selectedSplit.name"() {
+      this.getFirstRecord(this.dataset);
+    },
   },
   setup() {
     return useDatasetConfiguration();

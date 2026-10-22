@@ -287,6 +287,36 @@ describe("DatasetCreation", () => {
       expect(metadata.name).toBe("metadata");
       expect(metadata.title).toBe("metadata");
     });
+
+    it("switch fields when the selected subset changes", () => {
+      const builder = new DatasetCreationBuilder("FAKE", {
+        malicious_skills: {
+          ...datasetInfo.default,
+          features: {
+            Pattern: { dtype: "string", _type: "Value" },
+            Severity: { dtype: "string", _type: "Value" },
+          },
+        },
+        skills_dataset: {
+          ...datasetInfo.default,
+          features: {
+            url: { dtype: "string", _type: "Value" },
+          },
+        },
+      });
+      const datasetCreation = builder.build();
+
+      expect(datasetCreation.fields.map((field) => field.name)).toEqual([
+        "Pattern",
+        "Severity",
+      ]);
+
+      datasetCreation.changeSubset("skills_dataset");
+
+      expect(datasetCreation.fields.map((field) => field.name)).toEqual([
+        "url",
+      ]);
+    });
   });
 
   describe("addQuestions should", () => {

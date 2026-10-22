@@ -8,6 +8,16 @@ export const enum HUB_REPOSITORY_ERRORS {
   UNAVAILABLE = "HUGGING_FACE_UNAVAILABLE",
 }
 
+type HubSplit = {
+  config: string;
+  split: string;
+};
+
+type HubFirstRowsFeature = {
+  name: string;
+  type: unknown;
+};
+
 export class HubRepository {
   private axios: NuxtAxiosInstance;
   constructor(axios: PublicNuxtAxiosInstance) {
@@ -21,7 +31,7 @@ export class HubRepository {
         skipGlobalErrorHandler: true,
       } as any);
 
-      return data.dataset_info;
+      return await this.completeMissingSubsets(repoId, data.dataset_info);
     } catch (e: any) {
       const status = e.response?.status;
       const response =
@@ -35,6 +45,65 @@ export class HubRepository {
         response,
       };
     }
+  }
+
+  private async completeMissingSubsets(repoId: string, datasetInfo: any) {
+    let splits: HubSplit[];
+
+    try {
+      const { data } = await this.axios.get("/v1/hub/datasets/splits", {
+        params: { dataset: repoId },
+        skipGlobalErrorHandler: true,
+      } as any);
+      splits = data.splits;
+    } catch {
+      return datasetInfo;
+    }
+
+    const completedDatasetInfo = { ...datasetInfo };
+    const splitsByConfig = splits.reduce((result, { config, split }) => {
+      const configSplits = result.get(config) ?? [];
+      configSplits.push(split);
+      result.set(config, configSplits);
+
+      return result;
+    }, new Map<string, string[]>());
+
+    for (const [config, configSplits] of splitsByConfig) {
+      if (completedDatasetInfo[config]) continue;
+
+      try {
+        const split = configSplits[0];
+        const { data } = await this.axios.get("/v1/hub/datasets/first-rows", {
+          params: { dataset: repoId, config, split },
+          skipGlobalErrorHandler: true,
+        } as any);
+        const datasetName =
+          Object.values<any>(completedDatasetInfo)[0]?.dataset_name ??
+          repoId.split("/").pop();
+
+        completedDatasetInfo[config] = {
+          config_name: config,
+          dataset_name: datasetName,
+          features: Object.fromEntries(
+            data.features.map(({ name, type }: HubFirstRowsFeature) => [
+              name,
+              type,
+            ])
+          ),
+          splits: Object.fromEntries(
+            configSplits.map((name) => [
+              name,
+              { name, dataset_name: datasetName },
+            ])
+          ),
+        };
+      } catch {
+        // A failed subset should not prevent importing the remaining subsets.
+      }
+    }
+
+    return completedDatasetInfo;
   }
 
   async getColumnsDistributions(
