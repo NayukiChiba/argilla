@@ -58,13 +58,19 @@
           <template #left>
             <div class="dataset-config__preview">
               <iframe
-                v-if="datasetViewerUrl"
+                v-if="datasetViewerUrl && viewerAvailable === true"
                 :key="datasetViewerUrl"
                 :src="datasetViewerUrl"
                 frameborder="0"
                 width="100%"
                 height="500px"
               ></iframe>
+              <p
+                v-else-if="datasetViewerUrl && viewerAvailable === false"
+                class="dataset-config__preview-error"
+                role="status"
+                v-text="$t('datasetCreation.viewerTooLong')"
+              />
             </div>
           </template>
           <template #right>
@@ -160,6 +166,11 @@ export default {
     @include media("<tablet") {
       width: 100%;
     }
+  }
+  &__preview-error {
+    margin: 0;
+    color: var(--fg-secondary);
+    @include font-size(14px);
   }
   &__empty-questions {
     width: 100%;

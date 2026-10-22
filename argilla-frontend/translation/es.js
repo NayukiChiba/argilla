@@ -329,6 +329,8 @@ export default {
       "Este dataset requiere autenticación de Hugging Face. Configura HF_TOKEN en el servidor de Argilla.",
     hubUnavailable:
       "Hugging Face no está disponible. Inténtalo de nuevo más tarde.",
+    viewerTooLong:
+      "El visor del dataset está tardando demasiado en obtener los datos.",
     none: "Ninguno",
     noWorkspaces:
       "Por favor, sigue <a target='_blank' href='https://docs.argilla.io/latest/how_to_guides/workspace/#create-a-new-workspace'>esta guía</a> para crear un espacio de trabajo",
