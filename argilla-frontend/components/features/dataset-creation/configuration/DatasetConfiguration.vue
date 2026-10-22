@@ -58,13 +58,18 @@
           <template #left>
             <div class="dataset-config__preview">
               <iframe
-                v-if="datasetViewerUrl"
+                v-if="datasetViewerUrl && viewerAvailable"
                 :key="datasetViewerUrl"
                 :src="datasetViewerUrl"
                 frameborder="0"
                 width="100%"
                 height="500px"
               ></iframe>
+              <pre
+                v-else-if="firstRecord"
+                class="dataset-config__preview-fallback"
+                >{{ firstRecordJson }}</pre
+              >
             </div>
           </template>
           <template #right>
@@ -108,6 +113,9 @@ export default {
       return `https://huggingface.co/datasets/${repository}/embed/viewer/${encodeURIComponent(
         subset.name
       )}/${encodeURIComponent(split)}`;
+    },
+    firstRecordJson() {
+      return JSON.stringify(this.firstRecord, null, 2);
     },
   },
   watch: {
@@ -160,6 +168,14 @@ export default {
     @include media("<tablet") {
       width: 100%;
     }
+  }
+  &__preview-fallback {
+    box-sizing: border-box;
+    margin: 0;
+    min-height: 100%;
+    padding: $base-space * 2;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   &__empty-questions {
     width: 100%;

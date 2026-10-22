@@ -112,6 +112,65 @@ describe("HubRepository", () => {
     expect(result).toEqual(datasetInfo);
   });
 
+  it("loads the first record from the paginated viewer", async () => {
+    const get = jest.fn().mockResolvedValueOnce({
+      data: { rows: [{ row: { text: "sample" } }] },
+    });
+    const repository = createRepository(get);
+    const dataset = {
+      repoId: "owner/dataset",
+      selectedSubset: {
+        name: "default",
+        selectedSplit: { name: "train" },
+      },
+    } as any;
+
+    await expect(repository.getFirstRecord(dataset)).resolves.toEqual({
+      record: { text: "sample" },
+      viewerAvailable: true,
+    });
+    expect(get).toHaveBeenCalledWith("/v1/hub/datasets/rows", {
+      params: {
+        dataset: "owner/dataset",
+        config: "default",
+        split: "train",
+        offset: 0,
+        length: 1,
+      },
+      skipGlobalErrorHandler: true,
+    });
+  });
+
+  it("falls back to cached first rows when the paginated viewer fails", async () => {
+    const get = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("Scan size limit exceeded"))
+      .mockResolvedValueOnce({
+        data: { rows: [{ row: { text: "cached sample" } }] },
+      });
+    const repository = createRepository(get);
+    const dataset = {
+      repoId: "owner/dataset",
+      selectedSubset: {
+        name: "default",
+        selectedSplit: { name: "train" },
+      },
+    } as any;
+
+    await expect(repository.getFirstRecord(dataset)).resolves.toEqual({
+      record: { text: "cached sample" },
+      viewerAvailable: false,
+    });
+    expect(get).toHaveBeenLastCalledWith("/v1/hub/datasets/first-rows", {
+      params: {
+        dataset: "owner/dataset",
+        config: "default",
+        split: "train",
+      },
+      skipGlobalErrorHandler: true,
+    });
+  });
+
   it.each([
     [401, HUB_REPOSITORY_ERRORS.AUTHENTICATION_REQUIRED],
     [403, HUB_REPOSITORY_ERRORS.AUTHENTICATION_REQUIRED],

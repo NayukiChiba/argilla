@@ -10,15 +10,18 @@ type Structure = {
   isChat?: boolean;
   isCustom?: boolean;
   kindObject?: "Value" | "Image" | "ClassLabel" | "Sequence";
-  type?: "string" | MetadataTypes;
+  type?: "string" | "large_string" | MetadataTypes;
   feature?: Feature;
 };
+
+const isStringType = (type: unknown) =>
+  type === "string" || type === "large_string";
 
 const isStringFeature = (feature: unknown) => {
   if (!feature || typeof feature !== "object") return false;
 
   const { _type, dtype } = feature as Feature;
-  return _type === "Value" && dtype === "string";
+  return _type === "Value" && isStringType(dtype);
 };
 
 const isChatFeature = (feature: unknown) => {
@@ -55,7 +58,7 @@ export class Subset {
         if (
           value.length === 1 &&
           listFeature?._type === "Value" &&
-          listFeature.dtype === "string"
+          isStringType(listFeature.dtype)
         ) {
           this.structures.push({
             name,
@@ -162,7 +165,7 @@ export class Subset {
 
   private tryToCreateFields(structure: Structure) {
     const getFieldType = (structure: Structure) => {
-      if (structure.kindObject === "Value" && structure.type === "string")
+      if (structure.kindObject === "Value" && isStringType(structure.type))
         return "text";
 
       if (structure.kindObject === "Image") return "image";

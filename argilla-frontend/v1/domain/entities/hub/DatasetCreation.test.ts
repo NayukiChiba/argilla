@@ -88,6 +88,33 @@ describe("DatasetCreation", () => {
       expect(firstField.required).toBeFalsy();
     });
 
+    it("create text fields from Arrow large strings", () => {
+      const builder = new DatasetCreationBuilder("FAKE", {
+        default: {
+          ...datasetInfo.default,
+          features: {
+            messages: {
+              dtype: "large_string",
+              _type: "Value",
+            },
+          },
+        },
+      });
+
+      const datasetCreation = builder.build();
+      const field = datasetCreation.fields[0];
+
+      expect(field.name).toBe("messages");
+      expect(field.type.isTextType).toBeTruthy();
+      expect(field.primitiveType).toBe("large_string");
+      expect(datasetCreation.mappings.fields).toEqual([
+        {
+          source: "messages",
+          target: "messages",
+        },
+      ]);
+    });
+
     it("create image field", () => {
       const builder = new DatasetCreationBuilder("FAKE", datasetInfo);
 

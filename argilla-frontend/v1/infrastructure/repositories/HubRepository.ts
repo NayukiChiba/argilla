@@ -18,6 +18,11 @@ type HubFirstRowsFeature = {
   type: unknown;
 };
 
+export type HubPreview = {
+  record: Record<string, unknown>;
+  viewerAvailable: boolean;
+};
+
 export class HubRepository {
   private axios: NuxtAxiosInstance;
   constructor(axios: PublicNuxtAxiosInstance) {
@@ -153,21 +158,44 @@ export class HubRepository {
     return distributions;
   }
 
-  async getFirstRecord(dataset: DatasetCreation): Promise<any> {
+  async getFirstRecord(dataset: DatasetCreation): Promise<HubPreview> {
+    const { repoId, selectedSubset } = dataset;
+    const params = {
+      dataset: repoId,
+      split: selectedSubset.selectedSplit.name,
+      config: selectedSubset.name,
+    };
+
     try {
-      const { repoId, selectedSubset } = dataset;
-      const { data } = await this.axios.get("/v1/hub/datasets/first-rows", {
-        params: {
-          dataset: repoId,
-          split: selectedSubset.selectedSplit.name,
-          config: selectedSubset.name,
-        },
+      const { data } = await this.axios.get("/v1/hub/datasets/rows", {
+        params: { ...params, offset: 0, length: 1 },
         skipGlobalErrorHandler: true,
       } as any);
 
-      return data.rows[0].row;
+      return {
+        record: data.rows[0]?.row ?? {},
+        viewerAvailable: true,
+      };
     } catch {
-      return {};
+      // The paginated viewer can fail for large Parquet row groups even when
+      // the cached first rows remain available.
+    }
+
+    try {
+      const { data } = await this.axios.get("/v1/hub/datasets/first-rows", {
+        params,
+        skipGlobalErrorHandler: true,
+      } as any);
+
+      return {
+        record: data.rows[0]?.row ?? {},
+        viewerAvailable: false,
+      };
+    } catch {
+      return {
+        record: {},
+        viewerAvailable: false,
+      };
     }
   }
 }
