@@ -132,7 +132,13 @@ class HubDataset:
                 return feature.int2str(value)
         elif isinstance(feature, features.Sequence):
             return [self._cast_feature_value(feature.feature, v) for v in value]
-        elif isinstance(feature, features.Image) and isinstance(value, Image.Image):
+        elif isinstance(feature, features.Image):
+            if value is None:
+                return None
+
+            if not isinstance(value, Image.Image):
+                value = feature.decode_example(value)
+
             return pil_image_to_data_url(value)
         else:
             return value
