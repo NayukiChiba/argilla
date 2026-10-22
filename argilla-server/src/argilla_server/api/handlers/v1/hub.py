@@ -64,6 +64,15 @@ async def get_dataset_info(
     return await _proxy_dataset_viewer("info", {"dataset": dataset})
 
 
+@router.get("/splits")
+async def get_dataset_splits(
+    dataset: str = Query(..., min_length=1),
+    current_user: User = Security(auth.get_current_user),
+) -> Response:
+    await _authorize_hub_access(current_user)
+    return await _proxy_dataset_viewer("splits", {"dataset": dataset})
+
+
 @router.get("/statistics")
 async def get_dataset_statistics(
     dataset: str = Query(..., min_length=1),

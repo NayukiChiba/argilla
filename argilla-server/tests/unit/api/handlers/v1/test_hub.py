@@ -47,6 +47,33 @@ class TestHubDatasetViewer:
         assert request.headers["Authorization"] == "Bearer hf-secret-token"
         assert request.url.params["dataset"] == "owner/dataset"
 
+    async def test_get_splits_uses_server_token(
+        self, async_client: AsyncClient, owner_auth_header: dict, respx_mock, mocker
+    ):
+        mocker.patch("argilla_server.api.handlers.v1.hub.get_token", return_value="hf-secret-token")
+        respx_mock.get(f"{DATASETS_SERVER_URL}/splits").mock(
+            return_value=Response(
+                200,
+                json={
+                    "splits": [
+                        {"dataset": "owner/dataset", "config": "default", "split": "train"},
+                    ]
+                },
+            )
+        )
+
+        response = await async_client.get(
+            self.url("splits"),
+            params={"dataset": "owner/dataset"},
+            headers=owner_auth_header,
+        )
+
+        assert response.status_code == 200
+        assert response.json()["splits"][0]["config"] == "default"
+        request, _ = respx.calls.last
+        assert request.headers["Authorization"] == "Bearer hf-secret-token"
+        assert request.url.params["dataset"] == "owner/dataset"
+
     @pytest.mark.parametrize("upstream_status", [401, 404])
     async def test_preserves_hugging_face_error_status(
         self, upstream_status: int, async_client: AsyncClient, owner_auth_header: dict, respx_mock, mocker
