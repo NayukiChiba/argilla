@@ -7,14 +7,29 @@ export const availableFieldTypes = [
   FieldType.from("text"),
   FieldType.from("image"),
   FieldType.from("chat"),
+  FieldType.from("custom"),
 ];
 
-export type FieldCreationTypes = "no mapping" | "text" | "image" | "chat";
+export type FieldCreationTypes =
+  | "no mapping"
+  | "text"
+  | "image"
+  | "chat"
+  | "custom";
+
+const RAW_VALUE_KEY = "__argilla_raw_value__";
+
+const rawJsonTemplate = (fieldName: string) =>
+  `{{json (lookup (lookup record.fields "${fieldName}") "${RAW_VALUE_KEY}")}}`;
 
 export class FieldCreation {
   public required = false;
   public title: string;
-  public readonly settings: { type: FieldType };
+  public readonly settings: {
+    type: FieldType;
+    template?: string;
+    advanced_mode?: boolean;
+  };
 
   public readonly originalType: FieldType;
 
@@ -25,9 +40,16 @@ export class FieldCreation {
   ) {
     this.title = this.name;
 
-    this.settings = {
-      type: FieldType.from(type),
-    };
+    this.settings =
+      type === "custom"
+        ? {
+            type: FieldType.from(type),
+            template: rawJsonTemplate(name),
+            advanced_mode: false,
+          }
+        : {
+            type: FieldType.from(type),
+          };
 
     this.originalType = FieldType.from(type);
   }

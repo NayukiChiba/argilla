@@ -8,15 +8,11 @@ type Structure = {
   name: string;
   options?: string[];
   isChat?: boolean;
+  isCustom?: boolean;
   kindObject?: "Value" | "Image" | "ClassLabel" | "Sequence";
   type?: "string" | MetadataTypes;
   feature?: Feature;
 };
-
-const CHAT_FIELD_ALIASES = [
-  { role: "role", content: "content" },
-  { role: "from", content: "value" },
-] as const;
 
 const isStringFeature = (feature: unknown) => {
   if (!feature || typeof feature !== "object") return false;
@@ -29,9 +25,8 @@ const isChatFeature = (feature: unknown) => {
   if (!feature || typeof feature !== "object") return false;
 
   const properties = feature as Record<string, unknown>;
-  return CHAT_FIELD_ALIASES.some(
-    ({ role, content }) =>
-      isStringFeature(properties[role]) && isStringFeature(properties[content])
+  return (
+    isStringFeature(properties.role) && isStringFeature(properties.content)
   );
 };
 
@@ -70,9 +65,11 @@ export class Subset {
           continue;
         }
 
+        const isChat = isChatFeature(listFeature);
         this.structures.push({
           name,
-          isChat: isChatFeature(listFeature),
+          isChat,
+          isCustom: !isChat,
         });
       } else if (value.feature) {
         this.structures.push({
@@ -170,6 +167,7 @@ export class Subset {
 
       if (structure.kindObject === "Image") return "image";
       if (structure.isChat) return "chat";
+      if (structure.isCustom) return "custom";
     };
 
     const field = FieldCreation.from(

@@ -164,7 +164,7 @@ describe("DatasetCreation", () => {
       expect(chatField.required).toBeFalsy();
     });
 
-    it("create a chat field from ShareGPT messages", () => {
+    it("create a raw custom field from ShareGPT messages", () => {
       const builder = new DatasetCreationBuilder("FAKE", {
         default: {
           ...datasetInfo.default,
@@ -186,10 +186,13 @@ describe("DatasetCreation", () => {
       });
 
       const datasetCreation = builder.build();
-      const chatField = datasetCreation.fields[0];
+      const customField = datasetCreation.fields[0];
+      const rawJsonTemplate = `{{json (lookup (lookup record.fields "${customField.name}") "__argilla_raw_value__")}}`;
 
-      expect(chatField.name).toBe("conversations");
-      expect(chatField.type.isChatType).toBeTruthy();
+      expect(customField.name).toBe("conversations");
+      expect(customField.type.isCustomType).toBeTruthy();
+      expect(customField.settings.template).toBe(rawJsonTemplate);
+      expect(customField.settings.advanced_mode).toBeFalsy();
       expect(datasetCreation.mappings.fields).toEqual([
         {
           source: "conversations",
@@ -227,7 +230,7 @@ describe("DatasetCreation", () => {
       ]);
     });
 
-    it("skip other list feature from chat fields", () => {
+    it("create a raw custom field from other structured lists", () => {
       const builder = new DatasetCreationBuilder("FAKE", {
         default: {
           ...datasetInfo.default,
@@ -250,10 +253,7 @@ describe("DatasetCreation", () => {
 
       const datasetCreation = builder.build();
 
-      expect(
-        datasetCreation.fields.filter((f) => f.type.value === "no mapping")
-          .length
-      ).toBe(1);
+      expect(datasetCreation.fields[0].type.isCustomType).toBeTruthy();
     });
 
     it("get no mapped feature", () => {
