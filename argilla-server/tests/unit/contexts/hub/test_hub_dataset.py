@@ -359,6 +359,42 @@ class TestHubDataset:
         record = (await db.execute(select(Record))).scalar_one()
         assert record.fields["messages"]
 
+    @pytest.mark.parametrize(
+        ("messages", "expected"),
+        [
+            (
+                [{"role": "user", "content": "Hello"}],
+                [{"role": "user", "content": "Hello"}],
+            ),
+            (
+                [
+                    {"from": "system", "value": "You are a security assistant."},
+                    {"from": "human", "value": "Review this alert."},
+                    {"from": "gpt", "value": "The alert needs investigation."},
+                ],
+                [
+                    {"role": "system", "content": "You are a security assistant."},
+                    {"role": "human", "content": "Review this alert."},
+                    {"role": "gpt", "content": "The alert needs investigation."},
+                ],
+            ),
+        ],
+    )
+    def test_row_fields_normalizes_chat_field_aliases(self, mocker, messages, expected):
+        hub_dataset = HubDataset.__new__(HubDataset)
+        hub_dataset.mapping = HubDatasetMapping(
+            fields=[HubDatasetMappingItem(source="conversations", target="conversations")]
+        )
+
+        field = mocker.Mock(is_text=False, is_chat=True)
+        field.name = "conversations"
+        dataset = mocker.Mock()
+        dataset.field_by_name.return_value = field
+
+        fields = hub_dataset._row_fields({"conversations": messages}, dataset)
+
+        assert fields == {"conversations": expected}
+
     async def test_hub_dataset_import_to_with_image_fields(self, db: AsyncSession, mock_search_engine: SearchEngine):
         dataset = await DatasetFactory.create(status=DatasetStatus.ready)
 
