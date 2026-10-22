@@ -164,6 +164,35 @@ describe("DatasetCreation", () => {
       expect(chatField.required).toBeFalsy();
     });
 
+    it("create a text field from a list of strings", () => {
+      const builder = new DatasetCreationBuilder("FAKE", {
+        default: {
+          ...datasetInfo.default,
+          features: {
+            options: [
+              {
+                dtype: "string",
+                _type: "Value",
+              },
+            ],
+          },
+        },
+      });
+
+      const datasetCreation = builder.build();
+      const optionsField = datasetCreation.fields[0];
+
+      expect(optionsField.name).toBe("options");
+      expect(optionsField.type.isTextType).toBeTruthy();
+      expect(optionsField.primitiveType).toBe("string");
+      expect(datasetCreation.mappings.fields).toEqual([
+        {
+          source: "options",
+          target: "options",
+        },
+      ]);
+    });
+
     it("skip other list feature from chat fields", () => {
       const builder = new DatasetCreationBuilder("FAKE", {
         default: {
