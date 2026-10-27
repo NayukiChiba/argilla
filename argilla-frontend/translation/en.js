@@ -287,6 +287,17 @@ export default {
     createdAt: "Created",
   },
   datasetCreation: {
+    csghubViewer: {
+      title: "CSGHub Dataset Viewer",
+      loading: "Loading dataset preview…",
+      empty: "No records in this split.",
+      previous: "Previous",
+      next: "Next",
+      retry: "Retry",
+      expand: "Expand row",
+      collapse: "Collapse row",
+      rows: "{start}–{end} of {total} rows",
+    },
     invalidHubUrl:
       "Enter a complete dataset URL from huggingface.co or the configured CSGHub endpoint, without query parameters.",
     source: "Data source",
