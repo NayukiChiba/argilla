@@ -139,9 +139,7 @@ async def test_batches_respect_limit_and_selected_split(source_config, respx_moc
         start = (int(request.url.params["page"]) - 1) * 100
         return response({"columns": ["id"], "rows": [[i] for i in range(start, min(start + 100, 250))], "total": 250})
 
-    route = respx_mock.get("https://hub.example.test/api/v1/datasets/owner/repo/dataviewer/rows").mock(
-        side_effect=page
-    )
+    route = respx_mock.get("https://hub.example.test/api/v1/datasets/owner/repo/dataviewer/rows").mock(side_effect=page)
     batches = [batch async for batch in CSGHubSource("owner/repo").batches("default", "test", 105)]
     assert [len(batch) for batch in batches] == [100, 5]
     assert batches[-1][-1] == {"id": 104}
@@ -173,6 +171,47 @@ async def test_unprepared_dataset_is_not_reported_as_empty_success(source_config
 def test_rejects_malformed_rows_instead_of_silently_dropping_columns():
     with pytest.raises(CSGHubError):
         CSGHubSource._decode_rows({"columns": ["text", "label"], "rows": [["missing-label"]]})
+
+
+def test_real_parquet_viewer_strings_are_restored_without_changing_text():
+    columns, rows = CSGHubSource._decode_rows(
+        {
+            "columns": ["text", "label", "score", "active", "nullable", "nested", "large_id"],
+            "columns_type": ["BYTE_ARRAY", "INT64", "DOUBLE", "BOOLEAN", "INT64", "LIST", "INT64"],
+            "rows": [["001\nfalse", "0", "1.25", "false", None, [{"value": "0"}], "9007199254740993"]],
+        }
+    )
+    assert rows == [dict(zip(columns, ["001\nfalse", 0, 1.25, False, None, [{"value": "0"}], 9007199254740993]))]
+    assert type(rows[0]["label"]) is int
+    assert type(rows[0]["active"]) is bool
+
+
+@pytest.mark.parametrize(
+    "kind,value", [("INT64", "1.5"), ("INT64", ""), ("DOUBLE", "NaN"), ("DOUBLE", "inf"), ("BOOL", "maybe")]
+)
+def test_invalid_typed_strings_are_reported_instead_of_silently_coerced(kind, value):
+    with pytest.raises(CSGHubError, match="declared column type"):
+        CSGHubSource._decode_rows({"columns": ["value"], "columns_type": [kind], "rows": [[value]]})
+
+
+@pytest.mark.asyncio
+async def test_stringified_labels_are_decoded_on_every_page(source_config, respx_mock):
+    def page(request):
+        start = (int(request.url.params["page"]) - 1) * 100
+        return response(
+            {
+                "columns": ["label"],
+                "columns_type": ["INT64"],
+                "rows": [[str(i)] for i in range(start, min(start + 100, 105))],
+                "total": 105,
+            }
+        )
+
+    respx_mock.get("https://hub.example.test/api/v1/datasets/owner/repo/dataviewer/rows").mock(side_effect=page)
+    result = await CSGHubSource("owner/repo").viewer(
+        "rows", {"config": "default", "split": "test", "offset": "98", "length": "7"}
+    )
+    assert [row["row"]["label"] for row in result["rows"]] == list(range(98, 105))
 
 
 @pytest.mark.parametrize(

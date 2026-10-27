@@ -4,6 +4,7 @@ Both the WebUI/worker and the Python SDK use this adapter through Argilla.
 Credentials and the trusted upstream address stay on the server.
 """
 
+import math
 import re
 from typing import Literal
 from urllib.parse import quote, unquote, urlsplit
@@ -14,6 +15,8 @@ from argilla_server.settings import settings
 
 HubSource = Literal["huggingface", "csghub"]
 PAGE_SIZE = 100
+INTEGER_TYPES = {"TINYINT", "SMALLINT", "INTEGER", "INT", "BIGINT", "INT32", "INT64"}
+FLOAT_TYPES = {"FLOAT", "DOUBLE", "FLOAT32", "FLOAT64"}
 
 
 class CSGHubError(ValueError):
@@ -83,9 +86,9 @@ def feature_for_column(type_name: str, values: list):
     kind = type_name.upper()
     if kind in ("BOOLEAN", "BOOL"):
         return {"_type": "Value", "dtype": "bool"}
-    if kind in ("TINYINT", "SMALLINT", "INTEGER", "INT", "BIGINT", "INT32", "INT64"):
+    if kind in INTEGER_TYPES:
         return {"_type": "Value", "dtype": "int64"}
-    if kind in ("FLOAT", "DOUBLE", "FLOAT32", "FLOAT64") or kind.startswith("DECIMAL"):
+    if kind in FLOAT_TYPES or kind.startswith("DECIMAL"):
         return {"_type": "Value", "dtype": "float64"}
     if kind in ("VARCHAR", "STRING", "TEXT", "UTF8"):
         return {"_type": "Value", "dtype": "string"}
@@ -104,6 +107,27 @@ def feature_for_column(type_name: str, values: list):
         keys = dict.fromkeys(key for row in values if isinstance(row, dict) for key in row)
         return {key: feature_for_column("", [row.get(key) for row in values if isinstance(row, dict)]) for key in keys}
     return {"_type": "Json"}
+
+
+def decode_column_value(value, type_name: str):
+    """Restore typed scalars serialized as strings by CSGHub's Parquet viewer."""
+    if not isinstance(value, str):
+        return value
+    kind = type_name.upper()
+    if kind in INTEGER_TYPES and re.fullmatch(r"[+-]?[0-9]+", value):
+        return int(value)
+    if kind in FLOAT_TYPES or kind.startswith("DECIMAL"):
+        try:
+            number = float(value)
+            if math.isfinite(number):
+                return number
+        except ValueError:
+            pass
+    if kind in ("BOOLEAN", "BOOL") and value.lower() in ("true", "false"):
+        return value.lower() == "true"
+    if kind in INTEGER_TYPES | FLOAT_TYPES | {"BOOLEAN", "BOOL"} or kind.startswith("DECIMAL"):
+        raise CSGHubError("CSGHub returned a value incompatible with its declared column type", 502)
+    return value
 
 
 class CSGHubSource:
@@ -167,7 +191,16 @@ class CSGHubSource:
             raise CSGHubError("CSGHub returned an invalid row schema", 502)
         if any(not isinstance(row, list) or len(row) != len(columns) for row in rows):
             raise CSGHubError("CSGHub row values do not match the column schema", 502)
-        return columns, [dict(zip(columns, row)) for row in rows]
+        types = data.get("columns_type") or []
+        if not isinstance(types, list) or not all(isinstance(kind, str) for kind in types):
+            raise CSGHubError("CSGHub returned invalid column types", 502)
+        return columns, [
+            {
+                column: decode_column_value(value, types[index] if index < len(types) else "")
+                for index, (column, value) in enumerate(zip(columns, row))
+            }
+            for row in rows
+        ]
 
     async def rows(self, client, config, split, offset=0, length=1):
         result = []

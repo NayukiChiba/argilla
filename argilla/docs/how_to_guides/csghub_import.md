@@ -57,6 +57,9 @@ http://127.0.0.1/datasets/root/example
 
 - `catalog.dataset_info[]` 转换为按配置名组织的 `dataset_info`，保留所有 split。
 - `columns`、`columns_type`、二维 `rows` 转换为命名列、features 和原生记录值。
+- CSGHub Parquet 预览可能把数值或布尔值序列化为字符串，例如 `INT64` 列返回
+  `"0"`。适配器依据声明的列类型还原标量，确保 SDK 和 worker 写入的值与
+  metadata 类型一致；文本列中的 `"001"` 不会被转换，非法数值会明确报错。
 - 原生列表、对象、换行和空值不被拼接或扁平化；字段映射仍由用户确认。
 - 分页转换处理非整页 offset、跨页和最后一页；后台导入按批读取。
 - CSGHub 没有对应的列统计接口，因此不生成虚假的统计结果。
@@ -91,6 +94,20 @@ Compose 为 server 和 worker 配置了 `host.docker.internal:host-gateway`。
 
 更改配置后同时更新 server 和 worker。该功能需要本分支的服务端、前端和 SDK，
 现有官方镜像不包含这些修改。
+
+### 本机真实实例验证
+
+2026-10-27 使用本机 CSGHub 的私有仓库 `root/argilla-imdb-import-test`
+验证了用户 access token：未提供或无效 token 返回 401，正确 token 可读取
+DataViewer。样本取自本地缓存的 `stanfordnlp/imdb` test split，共 205 条，
+通过 CSGHub 的 multipart `upload_file` 接口上传 Parquet 文件并生成预览。
+
+- 修改后的 SDK 使用完整 URL 和 `settings="auto"`，跨页导入前 105 条记录。
+- Chrome WebUI 使用相同 URL，完成预览、配置和 worker 导入全部 205 条。
+- 两条路径的文本和整数标签均逐条回读，与原始 Parquet 样本一致。
+
+这些测试运行于隔离的 Argilla 源码实例（前端 16900、API 16901），没有更新
+现有 6900 容器。仅修改 `.env` 不会让旧镜像获得本分支的新功能。
 
 ## WebUI 使用
 
