@@ -122,9 +122,10 @@ class HubImportExportMixin(DiskImportExportMixin):
         settings: Union["Settings", Literal["auto", "ui"]] = "ui",
         split: Optional[str] = None,
         subset: Optional[str] = None,
+        source: Literal["huggingface", "csghub"] = "huggingface",
         **kwargs: Any,
     ) -> Union["Dataset", str]:
-        """Loads a `Dataset` from the Hugging Face Hub.
+        """Loads a `Dataset` from Hugging Face or the server's configured CSGHub.
 
         Parameters:
             repo_id: the ID of the Hugging Face Hub repo to load the `Dataset` from.
@@ -137,7 +138,11 @@ class HubImportExportMixin(DiskImportExportMixin):
                 the settings will be inferred from the `Features` of the dataset on the hub. Defaults to "ui".
             split: the split to load from the Hugging Face dataset. If not provided, the first split will be loaded.
             subset: the subset to load from the Hugging Face dataset. If not provided, the first subset will be loaded.
-            **kwargs: the kwargs to pass to `datasets.Dataset.load_from_hub`.
+            source: "huggingface" (default) or "csghub" for repository IDs. Complete dataset URLs
+                are resolved by the Argilla server and determine the source automatically.
+                CSGHub uses the endpoint/token configured
+                on the Argilla server for both metadata and paginated records; no HF token is reused.
+            **kwargs: Hugging Face `load_dataset` options, or `max_records` for CSGHub imports.
 
         Returns:
             A `Dataset` loaded from the Hugging Face Hub.
@@ -146,6 +151,14 @@ class HubImportExportMixin(DiskImportExportMixin):
         from datasets import load_dataset
         from huggingface_hub import snapshot_download
 
+        if source not in ("huggingface", "csghub"):
+            raise ValueError(f"Unsupported hub source: {source}")
+        if "://" in repo_id:
+            from argilla import Argilla
+
+            client = client or Argilla._get_default()
+            resolved = client.api.hub.resolve(repo_id)
+            repo_id, source = resolved["repo_id"], resolved["source"]
         settings = settings or "ui"
 
         if name is None:
@@ -157,6 +170,20 @@ class HubImportExportMixin(DiskImportExportMixin):
                 subset=subset,
                 split=split,
                 client=client,
+                source=source,
+            )
+
+        elif source == "csghub":
+            return cls._from_csghub(
+                repo_id,
+                name=name,
+                workspace=workspace,
+                client=client,
+                with_records=with_records,
+                settings=settings,
+                subset=subset,
+                split=split,
+                **kwargs,
             )
 
         elif isinstance(settings, Settings):
@@ -208,6 +235,38 @@ class HubImportExportMixin(DiskImportExportMixin):
                     category=UserWarning,
                 )
 
+        return dataset
+
+    @classmethod
+    def _from_csghub(
+        cls, repo_id, *, name, workspace, client, with_records, settings, subset, split, max_records=None
+    ):
+        from argilla import Argilla, Settings
+
+        if max_records is not None and (
+            not isinstance(max_records, int) or isinstance(max_records, bool) or max_records < 0
+        ):
+            raise ValueError("max_records must be a non-negative integer")
+        client = client or Argilla._get_default()
+        info = client.api.hub.info(repo_id, "csghub")
+        if not info:
+            raise ValueError("The CSGHub dataset has no available subsets")
+        subset = subset or next(iter(info))
+        if subset not in info:
+            raise ValueError(f"Unknown CSGHub subset: {subset}")
+        splits = info[subset]["splits"]
+        split = split or next(iter(splits), None)
+        if split not in splits:
+            raise ValueError(f"Unknown CSGHub split: {split}")
+        if settings == "auto":
+            settings = Settings.from_hub(repo_id, subset=subset, source="csghub", client=client)
+        if not isinstance(settings, Settings):
+            raise ValueError('settings must be "auto", "ui", or an Argilla Settings instance')
+        dataset = cls(name=name, workspace=workspace, client=client, settings=settings)
+        dataset.create()
+        if with_records:
+            for rows in client.api.hub.iter_batches(repo_id, subset, split, "csghub", max_records):
+                dataset.records.log(rows)
         return dataset
 
     @staticmethod
@@ -333,7 +392,9 @@ class HubImportExportMixin(DiskImportExportMixin):
             return sample_huggingface_record
 
     @classmethod
-    def _run_settings_ui(cls, repo_id: str, subset: str, split: str, client: Optional["Argilla"] = None) -> str:
+    def _run_settings_ui(
+        cls, repo_id: str, subset: str, split: str, client: Optional["Argilla"] = None, source: str = "huggingface"
+    ) -> str:
         from urllib.parse import quote_plus, urlencode
         from argilla.client import Argilla
 
@@ -346,7 +407,10 @@ class HubImportExportMixin(DiskImportExportMixin):
             "split": split,
         }
 
-        url = f"{client.api_url.removesuffix('/')}/new/{quote_plus(repo_id)}?{urlencode(params)}"
+        if source != "huggingface":
+            params["source"] = source
+        params = {key: value for key, value in params.items() if value is not None}
+        url = f"{client.api_url.removesuffix('/')}/{quote_plus(repo_id)}?{urlencode(params)}"
 
         try:
             webbrowser.open(url, new=2, autoraise=True)

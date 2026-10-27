@@ -62,6 +62,8 @@ class AttributeType(Enum):
 def _get_dataset_features(
     repo_id: str,
     config: Optional[str] = None,
+    source: str = "huggingface",
+    client=None,
 ) -> Dict[str, Dict[str, Any]]:
     """Get the features of a dataset from the datasets server using the repo_id and config.
     Extract the features from the response and return them as a dictionary.
@@ -72,6 +74,19 @@ def _get_dataset_features(
     Returns:
         Dict[str, Dict[str, Any]]: The features of the dataset.
     """
+
+    if source not in ("huggingface", "csghub"):
+        raise ValueError(f"Unsupported hub source: {source}")
+    if source == "csghub":
+        from argilla import Argilla
+
+        dataset_info = (client or Argilla._get_default()).api.hub.info(repo_id, source)
+        if not dataset_info:
+            raise DatasetsServerException("The CSGHub dataset has no available subsets")
+        config = config or next(iter(dataset_info))
+        if config not in dataset_info:
+            raise DatasetsServerException(f"Configuration '{config}' not found in the dataset.")
+        return dataset_info[config]["features"]
 
     url = f"{DATASETS_SERVER_BASE_URL}/info?dataset={repo_id}"
 
@@ -274,6 +289,8 @@ def build_settings_from_repo_id(
     repo_id: str,
     feature_mapping: Optional[Dict[str, str]] = None,
     subset: Optional[str] = None,
+    source: str = "huggingface",
+    client=None,
 ) -> "Settings":
     """Build the argilla settings from the features of a dataset.
 
@@ -283,7 +300,13 @@ def build_settings_from_repo_id(
         subset (str): The subset of the dataset to use. If provided, 'config' should not be provided.
 
     """
-    dataset_features = _get_dataset_features(repo_id=repo_id, config=subset)
+    if "://" in repo_id:
+        from argilla import Argilla
+
+        client = client or Argilla._get_default()
+        resolved = client.api.hub.resolve(repo_id)
+        repo_id, source = resolved["repo_id"], resolved["source"]
+    dataset_features = _get_dataset_features(repo_id=repo_id, config=subset, source=source, client=client)
     settings = _define_settings_from_features(dataset_features, feature_mapping)
 
     if not settings.questions:
@@ -296,7 +319,8 @@ def build_settings_from_repo_id(
                 values=[0, 1, 2, 3, 4, 5],
             )
         )
-        _render_code_snippet(repo_id=repo_id, subset=subset)
+        if source == "huggingface":
+            _render_code_snippet(repo_id=repo_id, subset=subset)
 
     settings.questions[0].required = True
     settings.fields[0].required = True

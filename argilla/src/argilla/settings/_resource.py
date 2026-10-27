@@ -270,6 +270,8 @@ class Settings(DefaultSettingsMixin, Resource):
         repo_id: str,
         subset: Optional[str] = None,
         feature_mapping: Optional[Dict[str, Literal["question", "field", "metadata"]]] = None,
+        source: Literal["huggingface", "csghub"] = "huggingface",
+        client=None,
         **kwargs,
     ) -> "Settings":
         """Load the settings from the Hub
@@ -277,10 +279,14 @@ class Settings(DefaultSettingsMixin, Resource):
         Parameters:
             repo_id (str): The ID of the repository to load the settings from on the Hub.
             subset (Optional[str]): The subset of the repository to load the settings from.
+            source: Either "huggingface" or the CSGHub configured on the Argilla server.
+            client: Argilla client used to access a configured CSGHub source.
             feature_mapping (Dict[str, Literal["question", "field", "metadata"]]): A dictionary that maps incoming column names to Argilla attributes.
         """
 
-        settings = build_settings_from_repo_id(repo_id=repo_id, feature_mapping=feature_mapping, subset=subset)
+        settings = build_settings_from_repo_id(
+            repo_id=repo_id, feature_mapping=feature_mapping, subset=subset, source=source, client=client
+        )
         return settings
 
     def __eq__(self, other: "Settings") -> bool:
