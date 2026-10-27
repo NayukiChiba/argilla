@@ -22,17 +22,29 @@ describe("DatasetConfiguration sources", () => {
     selectedSubset: { name: "default", selectedSplit: { name: "train" } },
   });
 
-  it("does not construct a Hugging Face iframe for CSGHub", () => {
+  it("embeds CSGHub through the authenticated local viewer and follows subset/split selection", async () => {
+    const resolve = jest.fn(({ path, query }) => ({
+      href: `/argilla${path}?${new URLSearchParams(query)}`,
+    }));
     const wrapper = shallowMount(DatasetConfiguration, {
       propsData: { dataset: dataset("csghub") },
       stubs,
-      mocks: { $t: (key) => key },
+      mocks: { $t: (key) => key, $router: { resolve } },
     });
-    expect(wrapper.vm.datasetViewerUrl).toBeNull();
-    expect(wrapper.find("iframe").exists()).toBe(false);
-    expect(wrapper.find(".dataset-config__raw-preview").text()).toContain(
-      "hello"
+    expect(wrapper.find("iframe").attributes("src")).toBe(
+      "/argilla/dataset-viewer/csghub?dataset=owner%2Frepo&config=default&split=train"
     );
+    const changed = dataset("csghub");
+    changed.selectedSubset = {
+      name: "subset / two",
+      selectedSplit: { name: "test" },
+    };
+    await wrapper.setProps({ dataset: changed });
+    expect(wrapper.find("iframe").attributes("src")).toContain(
+      "config=subset+%2F+two&split=test"
+    );
+    expect(wrapper.find(".dataset-config__raw-preview").exists()).toBe(false);
+    wrapper.destroy();
   });
 
   it("retains the Hugging Face embed for Hugging Face datasets", () => {

@@ -57,29 +57,6 @@
         >
           <template #left>
             <div class="dataset-config__preview">
-              <dl
-                v-if="dataset.source === 'csghub' && viewerAvailable === true"
-                class="dataset-config__raw-preview"
-              >
-                <template v-for="(value, column) in firstRecord">
-                  <dt :key="`${column}-name`">{{ column }}</dt>
-                  <dd :key="`${column}-value`">
-                    <pre>{{
-                      typeof value === "string"
-                        ? value
-                        : JSON.stringify(value, null, 2)
-                    }}</pre>
-                  </dd>
-                </template>
-              </dl>
-              <p
-                v-else-if="
-                  dataset.source === 'csghub' && viewerAvailable === false
-                "
-                role="status"
-              >
-                {{ $t("datasetCreation.csghubUnavailable") }}
-              </p>
               <iframe
                 v-if="datasetViewerUrl && viewerAvailable === true"
                 :key="datasetViewerUrl"
@@ -87,12 +64,24 @@
                 frameborder="0"
                 width="100%"
                 height="500px"
+                :title="
+                  dataset.source === 'csghub'
+                    ? 'CSGHub dataset viewer'
+                    : 'Hugging Face dataset viewer'
+                "
+                referrerpolicy="no-referrer"
               ></iframe>
               <p
                 v-else-if="datasetViewerUrl && viewerAvailable === false"
                 class="dataset-config__preview-error"
                 role="status"
-                v-text="$t('datasetCreation.viewerTooLong')"
+                v-text="
+                  $t(
+                    dataset.source === 'csghub'
+                      ? 'datasetCreation.csghubUnavailable'
+                      : 'datasetCreation.viewerTooLong'
+                  )
+                "
               />
             </div>
           </template>
@@ -125,10 +114,16 @@ export default {
   },
   computed: {
     datasetViewerUrl() {
-      if (this.dataset.source === "csghub") return null;
       const subset = this.dataset.selectedSubset;
       const split = subset?.selectedSplit?.name;
       if (!this.dataset.repoId || !subset?.name || !split) return null;
+
+      if (this.dataset.source === "csghub") {
+        return this.$router.resolve({
+          path: "/dataset-viewer/csghub",
+          query: { dataset: this.dataset.repoId, config: subset.name, split },
+        }).href;
+      }
 
       const repository = this.dataset.repoId
         .split("/")
@@ -191,19 +186,7 @@ export default {
       width: 100%;
     }
   }
-  &__raw-preview {
-    margin: 0;
-    dt {
-      font-weight: 600;
-    }
-    dd {
-      margin: $base-space 0 $base-space * 2;
-    }
-    pre {
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-    }
-  }
+
   &__preview-error {
     margin: 0;
     color: var(--fg-secondary);

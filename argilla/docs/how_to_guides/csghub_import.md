@@ -63,7 +63,12 @@ http://127.0.0.1/datasets/root/example
 - 原生列表、对象、换行和空值不被拼接或扁平化；字段映射仍由用户确认。
 - 分页转换处理非整页 offset、跨页和最后一页；后台导入按批读取。
 - CSGHub 没有对应的列统计接口，因此不生成虚假的统计结果。
-- CSGHub 预览直接显示服务端返回的列和值，不加载 Hugging Face iframe。
+- CSGHub 使用 Argilla 同源 iframe 预览页 `/dataset-viewer/csghub`，通过已有
+  Hub API 读取原生 DataViewer 数据。表格支持分页、横向滚动和长文本展开，
+  显示当前 subset/split 以及总记录数，跟随 Fields 中的 subset/split 切换。
+  该页面不是嵌入整个 CSGHub Portal，不要求浏览器另行登录 CSGHub；iframe
+  URL 仅包含仓库、subset 和 split，访问令牌留在服务端。请求失败时隐藏旧
+  表格并显示重试入口，数据中的 HTML 作为文本显示，不会被执行。
 - 页面来源写入数据集 metadata，生成的继续上传示例也保持 CSGHub 来源。
 
 ## 配置
