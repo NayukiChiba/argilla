@@ -265,9 +265,9 @@ export default {
   home: {
     argillaDatasets: "Argilla Datensätze",
     none: "Bis jetzt keine",
-    importTitle: "Importiere ein Datensatz aus dem Hugging Face Hub",
+    importTitle: "Datensatz aus einem Hub importieren",
     importText:
-      "Starten Sie mit einem Datensatz aus dem Hub, indem Sie einfach den Repository-Namen einfügen",
+      "Vollständige Datensatz-URL von Hugging Face oder CSGHub einfügen",
     importButton: "Datensatz importieren",
     importFromHub: "Direkt vom Hub importieren",
     importFromPython: "Mit Python importieren",
@@ -277,11 +277,17 @@ export default {
     exampleDatasetsText: "Erkunden Sie diese Beispiel-Datensätze",
     guidesTitle: "Nicht mit Argilla vertraut?",
     guidesText: "Nutzen Sie diese Anleitungen an:",
-    pasteRepoIdPlaceholder: "Fügen Sie eine Repo-ID ein",
+    pasteRepoIdPlaceholder:
+      "Datensatz-URL, z. B. https://huggingface.co/datasets/stanfordnlp/imdb",
     demoLink:
       "Melden Sie sich bei dieser <a href='https://huggingface.co/spaces/argilla/argilla-template-space' target='_blank'>Demo</a> an, um Argilla auszuprobieren",
   },
   datasetCreation: {
+    invalidHubUrl:
+      "Geben Sie eine vollständige Datensatz-URL von huggingface.co oder dem konfigurierten CSGHub-Endpunkt ohne Abfrageparameter ein.",
+    source: "Datenquelle",
+    csghubUnavailable:
+      "Der CSGHub-Datensatz konnte nicht geladen werden. Prüfen Sie Serverkonfiguration, Zugriffstoken und Datenvorschau.",
     questions: {
       labelSelection: {
         atLeastTwoOptions: "Mindestens zwei Optionen müssen vorhanden sein",

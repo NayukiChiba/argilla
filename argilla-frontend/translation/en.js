@@ -267,11 +267,10 @@ export default {
     zeroDatasetsFound: "0 datasets found",
     argillaDatasets: "Your datasets",
     none: "None yet",
-    importTitle: "Import a dataset from Hugging Face Hub",
-    importText:
-      "Start with a dataset from the Hub by simply pasting the repository name",
+    importTitle: "Import a dataset from a Hub",
+    importText: "Paste the complete dataset URL from Hugging Face or CSGHub",
     importButton: "Import dataset",
-    importFromHub: "Import dataset from Hugging Face",
+    importFromHub: "Import dataset from Hub",
     importFromPython: "Import from Python",
     importFromPythonHFWarning:
       "If you're using a private Space, check the <a target='_blank' href='https://docs.argilla.io/latest/getting_started/how-to-configure-argilla-on-huggingface/#how-to-use-private-spaces'>docs</a>.",
@@ -279,7 +278,8 @@ export default {
     exampleDatasetsText: "Explore these example datasets",
     guidesTitle: "Not familiar with Argilla?",
     guidesText: "Take a look at these guides:",
-    pasteRepoIdPlaceholder: "Paste a repo id e.g., stanfordnlp/imdb",
+    pasteRepoIdPlaceholder:
+      "Dataset URL, e.g. https://huggingface.co/datasets/stanfordnlp/imdb",
     demoLink:
       "Log into this <a href='https://huggingface.co/spaces/argilla/argilla-template-space' target='_blank'>demo</a> to try Argilla out",
     name: "Dataset name",
@@ -287,6 +287,11 @@ export default {
     createdAt: "Created",
   },
   datasetCreation: {
+    invalidHubUrl:
+      "Enter a complete dataset URL from huggingface.co or the configured CSGHub endpoint, without query parameters.",
+    source: "Data source",
+    csghubUnavailable:
+      "Cannot load the CSGHub dataset. Check the server endpoint, access token, repository ID, and whether its data preview is ready.",
     questions: {
       labelSelection: {
         atLeastTwoOptions: "At least two options are required",

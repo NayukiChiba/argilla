@@ -22,7 +22,7 @@
         <svgicon name="close" width="8" aria-hidden="true"></svgicon
         >Close</BaseButton
       >
-      <form @submit.prevent="$emit('on-import-dataset', repositoryId)">
+      <form @submit.prevent="$emit('on-import-url', repositoryId.trim())">
         <transition name="slide-right" appear>
           <BaseInputContainer
             class="import-from-hub__input"
@@ -41,7 +41,7 @@
               :placeholder="$t('home.pasteRepoIdPlaceholder')"
             />
             <BaseButton
-              :disabled="!repositoryId"
+              :disabled="!repositoryId.trim()"
               class="secondary import-from-hub__button-submit"
               type="submit"
             >

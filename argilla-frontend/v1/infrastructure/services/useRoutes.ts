@@ -1,4 +1,5 @@
 import { useContext, useRoute, useRouter } from "@nuxtjs/composition-api";
+import { HubSource } from "~/v1/domain/entities/hub/DatasetCreation";
 import { Dataset } from "~/v1/domain/entities/dataset/Dataset";
 
 type KindOfParam =
@@ -57,8 +58,11 @@ export const useRoutes = () => {
     router.push(ROUTES.settings(id));
   };
 
-  const goToImportDatasetFromHub = (id: string) => {
-    router.push(ROUTES.importDatasetFromHub(id));
+  const goToImportDatasetFromHub = (
+    id: string,
+    source: HubSource = "huggingface"
+  ) => {
+    router.push({ path: ROUTES.importDatasetFromHub(id), query: { source } });
   };
 
   const goToHome = () => {

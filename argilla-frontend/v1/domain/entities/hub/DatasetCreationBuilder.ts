@@ -1,4 +1,4 @@
-import { DatasetCreation } from "./DatasetCreation";
+import { DatasetCreation, HubSource } from "./DatasetCreation";
 import { Subset } from "./Subset";
 
 export interface Feature {
@@ -11,7 +11,11 @@ export interface Feature {
 export class DatasetCreationBuilder {
   private readonly subsets: Subset[] = [];
   private readonly datasetName: string;
-  constructor(private readonly repoId: string, datasetInfo: any) {
+  constructor(
+    private readonly repoId: string,
+    datasetInfo: any,
+    private readonly source: HubSource = "huggingface"
+  ) {
     const firstKey = Object.keys(datasetInfo)[0];
     const defaultSubset = datasetInfo[firstKey];
 
@@ -23,6 +27,11 @@ export class DatasetCreationBuilder {
   }
 
   build(): DatasetCreation {
-    return new DatasetCreation(this.repoId, this.datasetName, this.subsets);
+    return new DatasetCreation(
+      this.repoId,
+      this.datasetName,
+      this.subsets,
+      this.source
+    );
   }
 }

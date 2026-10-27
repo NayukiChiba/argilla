@@ -44,6 +44,7 @@ export class DatasetRepository implements IDatasetRepository {
 
         metadata: {
           repoId: dataset.repoId,
+          source: dataset.source,
           subset: dataset.selectedSubset.name,
           split: dataset.selectedSubset.selectedSplit.name,
           mapping: dataset.mappings,
@@ -84,6 +85,7 @@ export class DatasetRepository implements IDatasetRepository {
         `/v1/datasets/${datasetId}/import`,
         {
           name: creation.repoId,
+          source: creation.source,
           subset: creation.selectedSubset.name,
           split: creation.selectedSubset.selectedSplit.name,
           mapping: creation.mappings,

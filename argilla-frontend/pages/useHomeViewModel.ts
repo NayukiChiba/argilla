@@ -1,5 +1,6 @@
 import { useResolve } from "ts-injecty";
 import { ref, useFetch } from "@nuxtjs/composition-api";
+import { HubSource } from "~/v1/domain/entities/hub/DatasetCreation";
 import { useRoutes, useFocusTab } from "~/v1/infrastructure/services";
 import { GetDatasetCreationUseCase } from "~/v1/domain/usecases/get-dataset-creation-use-case";
 import { GetDatasetsUseCase } from "@/v1/domain/usecases/get-datasets-use-case";
@@ -19,6 +20,17 @@ export const useHomeViewModel = () => {
   const getDatasetCreationUseCase = useResolve(GetDatasetCreationUseCase);
   const error = ref("");
 
+  const getNewDatasetByUrl = async (url: string) => {
+    error.value = "";
+    try {
+      const { repo_id: repoId, source } =
+        await getDatasetCreationUseCase.resolveUrl(url);
+      await getNewDatasetByRepoId(repoId, source);
+    } catch {
+      error.value = "datasetCreation.invalidHubUrl";
+    }
+  };
+
   useFocusTab(async () => {
     await onLoadDatasets();
   });
@@ -28,11 +40,14 @@ export const useHomeViewModel = () => {
     workspaces.value = await getWorkspacesUseCase.execute();
   });
 
-  const getNewDatasetByRepoId = async (repositoryId: string) => {
+  const getNewDatasetByRepoId = async (
+    repositoryId: string,
+    source: HubSource = "huggingface"
+  ) => {
     error.value = "";
     try {
-      await getDatasetCreationUseCase.execute(repositoryId);
-      goToImportDatasetFromHub(repositoryId);
+      await getDatasetCreationUseCase.execute(repositoryId, source);
+      goToImportDatasetFromHub(repositoryId, source);
     } catch (cause: any) {
       const messages = {
         [HUB_REPOSITORY_ERRORS.NOT_EXIST]: "datasetCreation.cantLoadRepository",
@@ -42,7 +57,9 @@ export const useHomeViewModel = () => {
       };
 
       error.value =
-        messages[cause.response] ?? "datasetCreation.hubUnavailable";
+        source === "csghub"
+          ? "datasetCreation.csghubUnavailable"
+          : messages[cause.response] ?? "datasetCreation.hubUnavailable";
     }
   };
 
@@ -86,6 +103,7 @@ export const useHomeViewModel = () => {
   };
 
   return {
+    getNewDatasetByUrl,
     datasets,
     workspaces,
     isLoadingDatasets,

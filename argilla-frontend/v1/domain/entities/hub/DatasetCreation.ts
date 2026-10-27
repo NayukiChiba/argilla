@@ -2,6 +2,8 @@ import { Field } from "../field/Field";
 import { Workspace } from "../workspace/Workspace";
 import { Subset } from "./Subset";
 
+export type HubSource = "huggingface" | "csghub";
+
 export class DatasetCreation {
   public selectedSubset: Subset;
 
@@ -11,7 +13,8 @@ export class DatasetCreation {
   constructor(
     public readonly repoId: string,
     public name: string,
-    private readonly subset: Subset[]
+    private readonly subset: Subset[],
+    public readonly source: HubSource = "huggingface"
   ) {
     this.selectedSubset = subset[0];
   }

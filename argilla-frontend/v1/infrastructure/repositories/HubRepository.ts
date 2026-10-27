@@ -1,11 +1,15 @@
 import { type NuxtAxiosInstance } from "@nuxtjs/axios";
 import { PublicNuxtAxiosInstance } from "../services";
-import { DatasetCreation } from "~/v1/domain/entities/hub/DatasetCreation";
+import {
+  DatasetCreation,
+  HubSource,
+} from "~/v1/domain/entities/hub/DatasetCreation";
 
 export const enum HUB_REPOSITORY_ERRORS {
   NOT_EXIST = "ERROR_FETCHING_DATASET",
   AUTHENTICATION_REQUIRED = "HUGGING_FACE_AUTHENTICATION_REQUIRED",
   UNAVAILABLE = "HUGGING_FACE_UNAVAILABLE",
+  INVALID_URL = "INVALID_HUB_DATASET_URL",
 }
 
 type HubSplit = {
@@ -29,14 +33,35 @@ export class HubRepository {
     this.axios = axios;
   }
 
-  async getDatasetCreation(repoId: string): Promise<any> {
+  async resolveUrl(
+    url: string
+  ): Promise<{ repo_id: string; source: HubSource }> {
+    try {
+      const { data } = await this.axios.get("/v1/hub/datasets/resolve", {
+        params: { url },
+        skipGlobalErrorHandler: true,
+      } as any);
+      return data;
+    } catch {
+      throw { response: HUB_REPOSITORY_ERRORS.INVALID_URL };
+    }
+  }
+
+  async getDatasetCreation(
+    repoId: string,
+    source: HubSource = "huggingface"
+  ): Promise<any> {
     try {
       const { data } = await this.axios.get("/v1/hub/datasets/info", {
-        params: { dataset: repoId },
+        params: { dataset: repoId, ...(source === "csghub" ? { source } : {}) },
         skipGlobalErrorHandler: true,
       } as any);
 
-      return await this.completeMissingSubsets(repoId, data.dataset_info);
+      return await this.completeMissingSubsets(
+        repoId,
+        data.dataset_info,
+        source
+      );
     } catch (e: any) {
       const status = e.response?.status;
       const response =
@@ -52,12 +77,16 @@ export class HubRepository {
     }
   }
 
-  private async completeMissingSubsets(repoId: string, datasetInfo: any) {
+  private async completeMissingSubsets(
+    repoId: string,
+    datasetInfo: any,
+    source: HubSource
+  ) {
     let splits: HubSplit[];
 
     try {
       const { data } = await this.axios.get("/v1/hub/datasets/splits", {
-        params: { dataset: repoId },
+        params: { dataset: repoId, ...(source === "csghub" ? { source } : {}) },
         skipGlobalErrorHandler: true,
       } as any);
       splits = data.splits;
@@ -80,7 +109,12 @@ export class HubRepository {
       try {
         const split = configSplits[0];
         const { data } = await this.axios.get("/v1/hub/datasets/first-rows", {
-          params: { dataset: repoId, config, split },
+          params: {
+            dataset: repoId,
+            config,
+            split,
+            ...(source === "csghub" ? { source } : {}),
+          },
           skipGlobalErrorHandler: true,
         } as any);
         const datasetName =
@@ -114,12 +148,14 @@ export class HubRepository {
   async getColumnsDistributions(
     repoId: string,
     subset: string,
-    split: string
+    split: string,
+    source: HubSource = "huggingface"
   ): Promise<any> {
     // Example call https://datasets-server.huggingface.co/statistics?dataset=derek-thomas/ScienceQA&config=default&split=train
     const { data } = await this.axios.get("/v1/hub/datasets/statistics", {
       params: {
         dataset: repoId,
+        ...(source === "csghub" ? { source } : {}),
         config: subset,
         split,
       },
@@ -159,9 +195,10 @@ export class HubRepository {
   }
 
   async getFirstRecord(dataset: DatasetCreation): Promise<HubPreview> {
-    const { repoId, selectedSubset } = dataset;
+    const { repoId, selectedSubset, source } = dataset;
     const params = {
       dataset: repoId,
+      ...(source === "csghub" ? { source } : {}),
       split: selectedSubset.selectedSplit.name,
       config: selectedSubset.name,
     };

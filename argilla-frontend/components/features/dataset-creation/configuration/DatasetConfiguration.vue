@@ -57,6 +57,29 @@
         >
           <template #left>
             <div class="dataset-config__preview">
+              <dl
+                v-if="dataset.source === 'csghub' && viewerAvailable === true"
+                class="dataset-config__raw-preview"
+              >
+                <template v-for="(value, column) in firstRecord">
+                  <dt :key="`${column}-name`">{{ column }}</dt>
+                  <dd :key="`${column}-value`">
+                    <pre>{{
+                      typeof value === "string"
+                        ? value
+                        : JSON.stringify(value, null, 2)
+                    }}</pre>
+                  </dd>
+                </template>
+              </dl>
+              <p
+                v-else-if="
+                  dataset.source === 'csghub' && viewerAvailable === false
+                "
+                role="status"
+              >
+                {{ $t("datasetCreation.csghubUnavailable") }}
+              </p>
               <iframe
                 v-if="datasetViewerUrl && viewerAvailable === true"
                 :key="datasetViewerUrl"
@@ -102,6 +125,7 @@ export default {
   },
   computed: {
     datasetViewerUrl() {
+      if (this.dataset.source === "csghub") return null;
       const subset = this.dataset.selectedSubset;
       const split = subset?.selectedSplit?.name;
       if (!this.dataset.repoId || !subset?.name || !split) return null;
@@ -165,6 +189,19 @@ export default {
     overflow: auto;
     @include media("<tablet") {
       width: 100%;
+    }
+  }
+  &__raw-preview {
+    margin: 0;
+    dt {
+      font-weight: 600;
+    }
+    dd {
+      margin: $base-space 0 $base-space * 2;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
   }
   &__preview-error {

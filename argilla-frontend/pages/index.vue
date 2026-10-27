@@ -42,7 +42,7 @@
             :is-expanded="showImportDatasetInput"
             @on-expand="showImportDatasetInput = true"
             @on-close="showImportDatasetInput = false"
-            @on-import-dataset="importDataset"
+            @on-import-url="getNewDatasetByUrl"
             :error="error"
           />
           <ImportFromPython v-if="!showImportDatasetInput" />
@@ -111,8 +111,8 @@ export default {
         this.showImportDatasetInput = true;
       }
     },
-    importDataset(repoId) {
-      this.getNewDatasetByRepoId(repoId);
+    importDataset(repoId, source = "huggingface") {
+      this.getNewDatasetByRepoId(repoId, source);
     },
   },
   components: {

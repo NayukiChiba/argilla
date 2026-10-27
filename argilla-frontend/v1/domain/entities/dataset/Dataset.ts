@@ -7,6 +7,7 @@ interface DatasetDistribution {
 }
 
 interface DatasetMetadata {
+  source?: "huggingface" | "csghub";
   repoId: string;
   subset: string;
   split: string;
@@ -155,6 +156,50 @@ export class Dataset {
     }
 
     const { repoId, subset, split } = this.metadata;
+
+    if (this.metadata.source === "csghub") {
+      const fields = Object.fromEntries(
+        this.metadata.mapping.fields.map(({ source, target }) => [
+          source,
+          target,
+        ])
+      );
+      const csghubMapping: Record<string, string[]> = {};
+      for (const { source, target } of [
+        ...this.metadata.mapping.fields,
+        ...this.metadata.mapping.metadata,
+        ...this.metadata.mapping.suggestions.map(({ source, target }) => ({
+          source,
+          target: `${target}.suggestion`,
+        })),
+      ]) {
+        (csghubMapping[source] ??= []).push(target);
+      }
+      if (this.metadata.mapping.external_id) {
+        (csghubMapping[this.metadata.mapping.external_id] ??= []).push("id");
+      }
+      return `
+  \`\`\`python
+  import argilla as rg
+
+  client = rg.Argilla(api_url=${JSON.stringify(
+    window.location.origin
+  )}, api_key=${JSON.stringify(user.apiKey)})
+  dataset = client.datasets(name=${JSON.stringify(
+    this.name
+  )}, workspace=${JSON.stringify(this.workspaceName)})
+  fields = ${JSON.stringify(fields)}
+  for rows in client.api.hub.iter_batches(${JSON.stringify(
+    repoId
+  )}, ${JSON.stringify(subset)}, ${JSON.stringify(split)}, source="csghub"):
+      for row in rows:
+          for source, target in fields.items():
+              field = dataset.settings.fields[target]
+              if isinstance(field, rg.CustomField) and "__argilla_raw_value__" in field.template and row.get(source) is not None:
+                  row[source] = {"__argilla_raw_value__": row[source]}
+      dataset.records.log(rows, mapping=${JSON.stringify(csghubMapping)})
+  \`\`\``;
+    }
 
     const snippet = `
   \`\`\`python

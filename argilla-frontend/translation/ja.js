@@ -272,11 +272,11 @@ export default {
     zeroDatasetsFound: "データセットが見つかりません",
     argillaDatasets: "データセット一覧",
     none: "データセットはありません",
-    importTitle: "Hugging Face Hubからデータセットをインポート",
+    importTitle: "Hubからデータセットをインポート",
     importText:
-      "リポジトリ名を貼り付けるだけで、Hubからデータセットをインポートできます",
+      "Hugging Face または CSGHub のデータセットの完全な URL を貼り付けてください",
     importButton: "データセットをインポート",
-    importFromHub: "Hugging Faceからデータセットをインポート",
+    importFromHub: "Hubからデータセットをインポート",
     importFromPython: "Pythonからインポート",
     importFromPythonHFWarning:
       "プライベートスペースを使用している場合は<a target='_blank' href='https://docs.argilla.io/latest/getting_started/how-to-configure-argilla-on-huggingface/#how-to-use-private-spaces'>ドキュメント</a>を参照してください。",
@@ -284,7 +284,8 @@ export default {
     exampleDatasetsText: "これらの例のデータセットを探索してみましょう",
     guidesTitle: "Argillaは初めてですか？",
     guidesText: "以下のガイドを参照してください",
-    pasteRepoIdPlaceholder: "リポジトリIDを貼り付け <例> stanfordnlp/imdb",
+    pasteRepoIdPlaceholder:
+      "データセット URL（例：https://huggingface.co/datasets/stanfordnlp/imdb）",
     demoLink:
       "こちらの<a href='https://huggingface.co/spaces/argilla/argilla-template-space' target='_blank'>デモ</a>にログインしてArgillaを試してみましょう",
     name: "データセット名",
@@ -292,6 +293,11 @@ export default {
     createdAt: "作成日",
   },
   datasetCreation: {
+    invalidHubUrl:
+      "huggingface.co または設定済み CSGHub の完全なデータセット URL を、クエリパラメータなしで入力してください。",
+    source: "データソース",
+    csghubUnavailable:
+      "CSGHub のデータセットを読み込めません。サーバーの設定、アクセストークン、プレビューの準備状態を確認してください。",
     questions: {
       labelSelection: {
         atLeastTwoOptions: "少なくとも2つのオプションが必要です",

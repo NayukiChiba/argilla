@@ -1,6 +1,47 @@
 import { HUB_REPOSITORY_ERRORS, HubRepository } from "./HubRepository";
 
 describe("HubRepository", () => {
+  it("resolves the full URL before loading metadata", async () => {
+    const get = jest
+      .fn()
+      .mockResolvedValue({ data: { repo_id: "owner/repo", source: "csghub" } });
+    const repository = new HubRepository({ get } as any);
+    await expect(
+      repository.resolveUrl("http://127.0.0.1/datasets/owner/repo")
+    ).resolves.toEqual({ repo_id: "owner/repo", source: "csghub" });
+    expect(get).toHaveBeenCalledWith(
+      "/v1/hub/datasets/resolve",
+      expect.objectContaining({
+        params: { url: "http://127.0.0.1/datasets/owner/repo" },
+      })
+    );
+  });
+
+  it("keeps CSGHub selected for info, splits and preview requests", async () => {
+    const get = jest
+      .fn()
+      .mockResolvedValueOnce({ data: { dataset_info: { default: {} } } })
+      .mockResolvedValueOnce({ data: { splits: [] } })
+      .mockResolvedValueOnce({
+        data: { rows: [{ row: { text: "CSGHub data" } }] },
+      });
+    const repository = new HubRepository({ get } as any);
+    await repository.getDatasetCreation("owner/repo", "csghub");
+    const preview = await repository.getFirstRecord({
+      repoId: "owner/repo",
+      source: "csghub",
+      selectedSubset: { name: "custom", selectedSplit: { name: "test" } },
+    } as any);
+    expect(preview.record).toEqual({ text: "CSGHub data" });
+    for (const [, options] of get.mock.calls) {
+      expect(options.params.source).toBe("csghub");
+    }
+    expect(get.mock.calls[2][1].params).toMatchObject({
+      config: "custom",
+      split: "test",
+    });
+  });
+
   const createRepository = (get: jest.Mock) => {
     const axios = { get };
 

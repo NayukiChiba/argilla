@@ -266,11 +266,10 @@ export default {
   home: {
     argillaDatasets: "Tus datasets",
     none: "Ninguno",
-    importTitle: "Importar un dataset desde Hugging Face Hub",
-    importText:
-      "Comienza con un conjunto de datos del Hub simplemente pegando el nombre del repositorio",
+    importTitle: "Importar un dataset desde un Hub",
+    importText: "Pega la URL completa del dataset de Hugging Face o CSGHub",
     importButton: "Importar dataset",
-    importFromHub: "Importar dataset desde Hugging Face",
+    importFromHub: "Importar dataset desde Hub",
     importFromPython: "Importar desde Python",
     importFromPythonHFWarning:
       "Si estás usando un Espacio privado, consulta la <a target='_blank' href='https://docs.argilla.io/latest/getting_started/how-to-configure-argilla-on-huggingface/#how-to-use-private-spaces'>documentación</a>.",
@@ -279,7 +278,7 @@ export default {
     guidesTitle: "¿No conoces Argilla?",
     guidesText: "Echa un vistazo a estas guías:",
     pasteRepoIdPlaceholder:
-      "Pega el ID del repositorio, por ejemplo, stanfordnlp/imdb",
+      "URL del dataset, p. ej. https://huggingface.co/datasets/stanfordnlp/imdb",
     demoLink:
       "Ingresa a esta <a href='https://huggingface.co/spaces/argilla/argilla-template-space' target='_blank'>demo</a> para probar Argilla",
     name: "Nombre del dataset",
@@ -287,6 +286,11 @@ export default {
     createdAt: "Creado",
   },
   datasetCreation: {
+    invalidHubUrl:
+      "Introduce la URL completa de huggingface.co o del endpoint de CSGHub configurado, sin parámetros.",
+    source: "Fuente de datos",
+    csghubUnavailable:
+      "No se puede cargar el dataset de CSGHub. Comprueba la dirección del servidor, el token, el repositorio y la vista previa.",
     questions: {
       labelSelection: {
         atLeastTwoOptions: "Se requieren al menos dos opciones",
