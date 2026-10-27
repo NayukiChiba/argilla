@@ -172,6 +172,7 @@ nav:
         - Annotate datasets: how_to_guides/annotate.md
         - Query and filter records: how_to_guides/query.md
         - Import and export datasets: how_to_guides/import_export.md
+        - Import datasets from CSGHub: how_to_guides/csghub_import.md
       - Advanced:
         - Custom fields with layout templates: how_to_guides/custom_fields.md
         - Use webhooks to respond to server events:

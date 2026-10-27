@@ -6,6 +6,9 @@ x-argilla-environment: &argilla-environment
   ARGILLA_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/argilla
   ARGILLA_REDIS_URL: redis://redis:6379/0
   HF_TOKEN: ${HF_TOKEN:-}
+  ARGILLA_CSGHUB_ENDPOINT: ${ARGILLA_CSGHUB_ENDPOINT:-}
+  ARGILLA_CSGHUB_INTERNAL_ENDPOINT: ${ARGILLA_CSGHUB_INTERNAL_ENDPOINT:-}
+  ARGILLA_CSGHUB_TOKEN: ${ARGILLA_CSGHUB_TOKEN:-}
   HF_HUB_DISABLE_TELEMETRY: "1"
 
 services:
@@ -13,6 +16,8 @@ services:
     image: ${ARGILLA_IMAGE:-argilla/argilla-server:v2.8.0}
     container_name: argilla-v2-server
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${ARGILLA_BIND_ADDRESS:-127.0.0.1}:${ARGILLA_PORT:-6900}:6900"
     environment:
@@ -47,6 +52,8 @@ services:
     image: ${ARGILLA_IMAGE:-argilla/argilla-server:v2.8.0}
     container_name: argilla-v2-worker
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       <<: *argilla-environment
       BACKGROUND_NUM_WORKERS: ${BACKGROUND_NUM_WORKERS:-2}

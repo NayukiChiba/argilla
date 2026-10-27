@@ -31,7 +31,17 @@ ARGILLA_WORKSPACE=admin
 BACKGROUND_NUM_WORKERS=2
 # Required when importing gated or private Hugging Face datasets.
 HF_TOKEN=hf_your_read_token
+# Optional CSGHub import source (server and worker share these settings).
+ARGILLA_CSGHUB_ENDPOINT=http://your-csghub-host
+ARGILLA_CSGHUB_TOKEN=your_csghub_user_access_token
+# When the public endpoint is on the Docker host:
+ARGILLA_CSGHUB_INTERNAL_ENDPOINT=http://host.docker.internal
 ```
+
+CSGHub import requires building the frontend, server/worker and SDK with this
+implementation; the unchanged official image does not include it.
+See [the CSGHub import guide](../../argilla/docs/how_to_guides/csghub_import.md)
+for the full pipeline, WebUI/SDK examples and DataViewer requirements.
 
 The same `HF_TOKEN` is available to the web server and background worker. The
 server uses it for dataset previews, and the worker uses it for the import job.
