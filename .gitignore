@@ -138,3 +138,8 @@ src/**/server/static/
 
 # Old users db file
 .users.yml
+
+# develop branch deployment artifacts and persistent data
+/data/
+.nuxt-deploy/
+/deploy/docker/credentials.local.json
