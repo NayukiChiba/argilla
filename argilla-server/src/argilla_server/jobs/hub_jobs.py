@@ -30,7 +30,9 @@ HUB_DATASET_TAKE_ROWS = 10_000
 
 
 @job(DEFAULT_QUEUE, timeout=JOB_TIMEOUT_DISABLED, retry=Retry(max=3))
-async def import_dataset_from_hub_job(name: str, subset: str, split: str, dataset_id: UUID, mapping: dict) -> None:
+async def import_dataset_from_hub_job(
+    name: str, subset: str, split: str, dataset_id: UUID, mapping: dict, source: str = "huggingface"
+) -> None:
     async with AsyncSessionLocal() as db:
         dataset = await Dataset.get_or_raise(
             db,
@@ -46,7 +48,7 @@ async def import_dataset_from_hub_job(name: str, subset: str, split: str, datase
             parsed_mapping = HubDatasetMapping.model_validate(mapping)
 
             await (
-                HubDataset(name, subset, split, parsed_mapping)
+                HubDataset(name, subset, split, parsed_mapping, source=source)
                 .take(HUB_DATASET_TAKE_ROWS)
                 .import_to(db, search_engine, dataset)
             )

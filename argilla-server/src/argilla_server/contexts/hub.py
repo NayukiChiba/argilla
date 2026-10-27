@@ -68,7 +68,22 @@ CUSTOM_FIELD_RAW_VALUE_KEY = "__argilla_raw_value__"
 
 
 class HubDataset:
-    def __init__(self, name: str, subset: str, split: str, mapping: HubDatasetMapping):
+    def __init__(self, name: str, subset: str, split: str, mapping: HubDatasetMapping, source: str = "huggingface"):
+        if source not in ("huggingface", "csghub"):
+            raise ValueError(f"Unsupported hub source: {source}")
+        self.source = source
+        self.name = name
+        self.subset = subset
+        self.split = split
+        self.mapping = mapping
+        self.mapping_feature_names = mapping.sources
+        self.row_idx = RESET_ROW_IDX
+        self.limit = None
+        if source == "csghub":
+            from argilla_server.contexts.hub_sources import CSGHubSource
+
+            self.csghub = CSGHubSource(name)
+            return
         token = get_token()
         try:
             self.dataset = load_dataset(path=name, name=subset, split=split, streaming=True, token=token)
@@ -80,10 +95,6 @@ class HubDataset:
 
         if self._contains_json_feature(self.features):
             self.dataset = self._load_dataset_viewer_parquet(name, subset, split, token)
-        self.split = split
-        self.mapping = mapping
-        self.mapping_feature_names = mapping.sources
-        self.row_idx = RESET_ROW_IDX
 
     @classmethod
     def _contains_json_feature(cls, feature: Any) -> bool:
@@ -161,10 +172,13 @@ class HubDataset:
 
     @property
     def features(self) -> Optional[dict]:
-        return self.dataset.features
+        dataset = getattr(self, "dataset", None)
+        return dataset.features if dataset is not None else None
 
     def take(self, n: int) -> Self:
-        self.dataset = self.dataset.take(n)
+        self.limit = n
+        if self.source == "huggingface":
+            self.dataset = self.dataset.take(n)
 
         return self
 
@@ -173,6 +187,15 @@ class HubDataset:
             raise Exception("it's not possible to import records to a non published dataset")
 
         self._reset_row_idx()
+
+        if self.source == "csghub":
+            async for rows in self.csghub.batches(self.subset, self.split, self.limit):
+                await UpsertRecordsBulk(db, search_engine).upsert_records_bulk(
+                    dataset,
+                    RecordsBulkUpsertSchema(items=[self._row_to_record_schema(row, dataset) for row in rows]),
+                    raise_on_error=True,
+                )
+            return
 
         batched_dataset = self.dataset.batch(batch_size=BATCH_SIZE)
         for batch in batched_dataset:
@@ -254,7 +277,8 @@ class HubDataset:
         if not self.mapping.external_id:
             return f"{self.split}_{self._next_row_idx()}"
 
-        return row[self.mapping.external_id]
+        value = row[self.mapping.external_id]
+        return str(value) if self.source == "csghub" and value is not None else value
 
     def _row_fields(self, row: dict, dataset: Dataset) -> dict:
         fields = {}

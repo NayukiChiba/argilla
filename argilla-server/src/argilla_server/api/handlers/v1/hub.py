@@ -16,10 +16,11 @@ from typing import Dict
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Security, status
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from huggingface_hub import get_token
 
 from argilla_server.api.policies.v1 import HubPolicy, authorize
+from argilla_server.contexts.hub_sources import CSGHubSource, CSGHubError, HubSource, resolve_dataset_url
 from argilla_server.models import User
 from argilla_server.security import auth
 
@@ -29,7 +30,21 @@ DATASETS_SERVER_TIMEOUT = 30.0
 router = APIRouter(prefix="/hub/datasets", tags=["hub"])
 
 
-async def _proxy_dataset_viewer(endpoint: str, params: Dict[str, str]) -> Response:
+async def _proxy_dataset_viewer(endpoint: str, params: Dict[str, str], source: HubSource = "huggingface") -> Response:
+    if source == "csghub":
+        try:
+            return JSONResponse(await CSGHubSource(params["dataset"]).viewer(endpoint, params))
+        except CSGHubError as error:
+            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+        except httpx.HTTPStatusError as error:
+            code = error.response.status_code
+            raise HTTPException(
+                status_code=code if code in (401, 403, 404) else 502,
+                detail="CSGHub dataset access failed; check the repository, token and viewer status",
+            ) from error
+        except (httpx.RequestError, KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=502, detail="Unable to read the CSGHub dataset viewer") from error
+
     headers = {}
     token = get_token()
     if token:
@@ -55,22 +70,38 @@ async def _authorize_hub_access(current_user: User) -> None:
     await authorize(current_user, HubPolicy.access())
 
 
+@router.get("/resolve")
+async def resolve_dataset(
+    url: str = Query(..., min_length=1),
+    current_user: User = Security(auth.get_current_user),
+) -> dict:
+    await _authorize_hub_access(current_user)
+    try:
+        return resolve_dataset_url(url)
+    except CSGHubError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="Invalid dataset URL") from error
+
+
 @router.get("/info")
 async def get_dataset_info(
     dataset: str = Query(..., min_length=1),
+    source: HubSource = Query("huggingface"),
     current_user: User = Security(auth.get_current_user),
 ) -> Response:
     await _authorize_hub_access(current_user)
-    return await _proxy_dataset_viewer("info", {"dataset": dataset})
+    return await _proxy_dataset_viewer("info", {"dataset": dataset}, source)
 
 
 @router.get("/splits")
 async def get_dataset_splits(
     dataset: str = Query(..., min_length=1),
+    source: HubSource = Query("huggingface"),
     current_user: User = Security(auth.get_current_user),
 ) -> Response:
     await _authorize_hub_access(current_user)
-    return await _proxy_dataset_viewer("splits", {"dataset": dataset})
+    return await _proxy_dataset_viewer("splits", {"dataset": dataset}, source)
 
 
 @router.get("/statistics")
@@ -78,10 +109,11 @@ async def get_dataset_statistics(
     dataset: str = Query(..., min_length=1),
     config: str = Query(..., min_length=1),
     split: str = Query(..., min_length=1),
+    source: HubSource = Query("huggingface"),
     current_user: User = Security(auth.get_current_user),
 ) -> Response:
     await _authorize_hub_access(current_user)
-    return await _proxy_dataset_viewer("statistics", {"dataset": dataset, "config": config, "split": split})
+    return await _proxy_dataset_viewer("statistics", {"dataset": dataset, "config": config, "split": split}, source)
 
 
 @router.get("/first-rows")
@@ -89,10 +121,11 @@ async def get_dataset_first_rows(
     dataset: str = Query(..., min_length=1),
     config: str = Query(..., min_length=1),
     split: str = Query(..., min_length=1),
+    source: HubSource = Query("huggingface"),
     current_user: User = Security(auth.get_current_user),
 ) -> Response:
     await _authorize_hub_access(current_user)
-    return await _proxy_dataset_viewer("first-rows", {"dataset": dataset, "config": config, "split": split})
+    return await _proxy_dataset_viewer("first-rows", {"dataset": dataset, "config": config, "split": split}, source)
 
 
 @router.get("/rows")
@@ -102,6 +135,7 @@ async def get_dataset_rows(
     split: str = Query(..., min_length=1),
     offset: int = Query(0, ge=0),
     length: int = Query(1, ge=1, le=100),
+    source: HubSource = Query("huggingface"),
     current_user: User = Security(auth.get_current_user),
 ) -> Response:
     await _authorize_hub_access(current_user)
@@ -114,4 +148,5 @@ async def get_dataset_rows(
             "offset": str(offset),
             "length": str(length),
         },
+        source,
     )

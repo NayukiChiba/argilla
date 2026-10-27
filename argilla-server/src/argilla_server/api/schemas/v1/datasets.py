@@ -192,6 +192,7 @@ class HubDatasetMapping(BaseModel):
 
 
 class HubDataset(BaseModel):
+    source: Literal["huggingface", "csghub"] = "huggingface"
     name: str
     subset: str
     split: str

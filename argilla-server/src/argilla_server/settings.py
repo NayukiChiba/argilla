@@ -24,7 +24,7 @@ import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings
 
@@ -75,6 +75,10 @@ class Settings(BaseSettings):
 
     __DATASETS_INDEX_NAME__ = "ar.datasets"
     __DATASETS_RECORDS_INDEX_NAME__ = "ar.dataset.{}"
+
+    csghub_endpoint: Optional[str] = None
+    csghub_internal_endpoint: Optional[str] = None
+    csghub_token: Optional[SecretStr] = None
 
     home_path: Optional[str] = Field(
         None,

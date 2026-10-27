@@ -15,7 +15,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Security, status, Query
+from fastapi import APIRouter, Depends, Security, status, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -43,6 +43,7 @@ from argilla_server.errors.future import UnprocessableEntityError
 from argilla_server.api.schemas.v1.vector_settings import VectorSettings, VectorSettingsCreate, VectorsSettings
 from argilla_server.api.schemas.v1.jobs import Job as JobSchema
 from argilla_server.contexts import datasets
+from argilla_server.contexts.hub_sources import CSGHubSource, CSGHubError
 from argilla_server.database import get_async_db
 from argilla_server.enums import DatasetStatus
 from argilla_server.jobs import hub_jobs
@@ -325,7 +326,14 @@ async def import_dataset_from_hub(
 
     await authorize(current_user, DatasetPolicy.import_from_hub(dataset))
 
+    if hub_dataset.source == "csghub":
+        try:
+            CSGHubSource(hub_dataset.name)
+        except CSGHubError as error:
+            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+
     job = hub_jobs.import_dataset_from_hub_job.delay(
+        source=hub_dataset.source,
         name=hub_dataset.name,
         subset=hub_dataset.subset,
         split=hub_dataset.split,
