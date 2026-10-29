@@ -5,7 +5,7 @@ from rq.job import Job
 from argilla_server.constants import API_KEY_HEADER_NAME
 from argilla_server.jobs.queues import REDIS_CONNECTION
 from argilla_server.settings import settings
-from tests.factories import AnnotatorFactory, DatasetFactory
+from tests.factories import AnnotatorFactory, DatasetFactory, RecordFactory, TextFieldFactory
 
 
 @pytest.fixture
@@ -111,3 +111,68 @@ async def test_import_job_retains_source_subset_split_and_mapping(async_client, 
     assert job.kwargs["subset"] == "custom"
     assert job.kwargs["split"] == "test"
     assert job.kwargs["mapping"]["fields"] == payload["mapping"]["fields"]
+
+
+@pytest.mark.asyncio
+async def test_export_target_requires_authentication(async_client, csghub_config):
+    result = await async_client.get(
+        "/api/v1/hub/datasets/export-target", params={"source": "csghub"}
+    )
+    assert result.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_export_target_defaults_to_huggingface(async_client, owner_auth_header):
+    result = await async_client.get(
+        "/api/v1/hub/datasets/export-target", headers=owner_auth_header
+    )
+    assert result.status_code == 200
+    assert result.json() == {"source": "huggingface", "endpoint": "https://huggingface.co"}
+
+
+@pytest.mark.asyncio
+async def test_export_target_returns_configured_csghub_endpoint(
+    async_client, owner_auth_header, csghub_config
+):
+    result = await async_client.get(
+        "/api/v1/hub/datasets/export-target",
+        params={"source": "csghub"},
+        headers=owner_auth_header,
+    )
+    assert result.status_code == 200
+    assert result.json() == {"source": "csghub", "endpoint": "https://csghub.test/hf"}
+
+
+@pytest.mark.asyncio
+async def test_export_job_retains_csghub_source(async_client, owner_auth_header):
+    dataset = await DatasetFactory.create()
+    field = await TextFieldFactory.create(name="text", dataset=dataset)
+    await RecordFactory.create(dataset=dataset, fields={field.name: "text"})
+    payload = {
+        "source": "csghub",
+        "name": "owner/repo",
+        "token": "csghub-token",
+    }
+    result = await async_client.post(
+        f"/api/v1/datasets/{dataset.id}/export", json=payload, headers=owner_auth_header
+    )
+    assert result.status_code == 202, result.text
+    job = Job.fetch(result.json()["id"], connection=REDIS_CONNECTION)
+    assert job.kwargs["source"] == "csghub"
+    assert job.kwargs["name"] == "owner/repo"
+
+
+@pytest.mark.asyncio
+async def test_export_job_rejects_invalid_csghub_repo(async_client, owner_auth_header):
+    dataset = await DatasetFactory.create()
+    field = await TextFieldFactory.create(name="text", dataset=dataset)
+    await RecordFactory.create(dataset=dataset, fields={field.name: "text"})
+    payload = {
+        "source": "csghub",
+        "name": "invalid-repo-name",
+        "token": "csghub-token",
+    }
+    result = await async_client.post(
+        f"/api/v1/datasets/{dataset.id}/export", json=payload, headers=owner_auth_header
+    )
+    assert result.status_code == 422

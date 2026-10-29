@@ -56,7 +56,7 @@ async def import_dataset_from_hub_job(
 
 @job(DEFAULT_QUEUE, timeout=JOB_TIMEOUT_DISABLED, retry=Retry(max=3))
 async def export_dataset_to_hub_job(
-    name: str, subset: str, split: str, private: bool, token: str, dataset_id: UUID
+    name: str, subset: str, split: str, private: bool, token: str, dataset_id: UUID, source: str = "huggingface"
 ) -> None:
     async with AsyncSessionLocal() as db:
         dataset = await Dataset.get_or_raise(
@@ -70,4 +70,4 @@ async def export_dataset_to_hub_job(
             ],
         )
 
-    HubDatasetExporter(dataset).export_to(name, subset, split, private, token)
+    HubDatasetExporter(dataset).export_to(name, subset, split, private, token, source=source)

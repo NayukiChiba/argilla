@@ -53,6 +53,22 @@ def csghub_configuration():
     return endpoint, {"Authorization": f"Bearer {token}"} if token else {}
 
 
+def csghub_public_endpoint() -> str:
+    """Public CSGHub origin advertised to clients pushing datasets back."""
+    return validate_endpoint(settings.csghub_endpoint or "")
+
+
+CSGHUB_HF_API_PREFIX = "/hf"
+
+
+def csghub_sdk_endpoint(internal: bool = False) -> str:
+    """HF-compatible SDK base URL (create repo, dataset info, LFS and resolve endpoints)."""
+    endpoint = csghub_public_endpoint()
+    if internal and settings.csghub_internal_endpoint:
+        endpoint = validate_endpoint(settings.csghub_internal_endpoint)
+    return endpoint.rstrip("/") + CSGHUB_HF_API_PREFIX
+
+
 def resolve_dataset_url(url: str) -> dict:
     """Resolve a dataset page URL without requesting user-supplied hosts."""
     parsed = urlsplit(url.strip())
