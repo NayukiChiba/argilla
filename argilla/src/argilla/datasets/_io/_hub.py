@@ -47,16 +47,20 @@ class HubImportExportMixin(DiskImportExportMixin):
         *,
         with_records: bool = True,
         generate_card: Optional[bool] = True,
+        source: Literal["huggingface", "csghub"] = "huggingface",
         **kwargs: Any,
     ) -> None:
-        """Pushes the `Dataset` to the Hugging Face Hub. If the dataset has been previously pushed to the
-        Hugging Face Hub, it will be updated instead of creating a new dataset repo.
+        """Pushes the `Dataset` to the Hugging Face Hub or the server's configured CSGHub. If the dataset has
+        been previously pushed to the same hub, it will be updated instead of creating a new dataset repo.
 
         Parameters:
-            repo_id: the ID of the Hugging Face Hub repo to push the `Dataset` to.
+            repo_id: the ID of the hub repo to push the `Dataset` to, in `namespace/name` format.
+                A complete dataset URL from huggingface.co or the configured CSGHub is also accepted.
             with_records: whether to load the records from the Hugging Face dataset. Defaults to `True`.
             generate_card: whether to generate a dataset card for the `Dataset` in the Hugging Face Hub. Defaults
                 to `True`.
+            source: `"huggingface"` (default) or `"csghub"`. For CSGHub, the endpoint configured on the Argilla
+                server is used and a CSGHub access token must be provided with the `token` kwarg.
             **kwargs: the kwargs to pass to `datasets.Dataset.push_to_hub`.
 
         Returns:
@@ -70,12 +74,30 @@ class HubImportExportMixin(DiskImportExportMixin):
             size_categories_parser,
         )
 
-        hf_api = HfApi(token=kwargs.get("token"))
+        if source not in ("huggingface", "csghub"):
+            raise ValueError(f"Unsupported hub source: {source}")
+
+        from argilla import Argilla
+
+        client = Argilla._get_default()
+        if "://" in repo_id:
+            resolved = client.api.hub.resolve(repo_id)
+            repo_id, source = resolved["repo_id"], resolved["source"]
+
+        endpoint = None
+        if source == "csghub":
+            endpoint = client.api.hub.export_target("csghub")["endpoint"]
+            if not kwargs.get("token"):
+                raise ValueError(
+                    "Pushing to CSGHub requires a CSGHub access token. Pass it with the `token` kwarg."
+                )
+
+        hf_api = HfApi(token=kwargs.get("token"), endpoint=endpoint)
 
         hfds = False
         if with_records:
             hfds = self.records(with_vectors=True, with_responses=True, with_suggestions=True).to_datasets()
-            hfds.push_to_hub(repo_id, **kwargs)
+            self._push_records_to_hub(hfds, repo_id, endpoint, **kwargs)
         else:
             hf_api.create_repo(repo_id=repo_id, repo_type="dataset", exist_ok=kwargs.get("exist_ok") or True)
 
@@ -109,6 +131,48 @@ class HubImportExportMixin(DiskImportExportMixin):
                 repo_id=repo_id,
                 repo_type="dataset",
             )
+
+    @staticmethod
+    def _push_records_to_hub(hfds: "HFDataset", repo_id: str, endpoint: Optional[str], **kwargs: Any) -> None:
+        """Route datasets.push_to_hub through a compatible hub like CSGHub when needed."""
+        from datasets import config as hf_datasets_config
+
+        if not endpoint:
+            hfds.push_to_hub(repo_id, **kwargs)
+            return
+        # Hubs like CSGHub answer repo probes with a plain 404, which huggingface_hub does not
+        # translate into RepositoryNotFoundError, so datasets never creates the repo itself.
+        # Xet storage is not supported either, so uploads must stay on the classic HTTP path.
+        from huggingface_hub import HfApi, constants as hf_constants
+        from huggingface_hub.errors import HfHubHTTPError
+
+        previous_xet = hf_constants.HF_HUB_DISABLE_XET
+        hf_constants.HF_HUB_DISABLE_XET = True
+        try:
+            api = HfApi(token=kwargs.get("token"), endpoint=endpoint)
+            api.create_repo(repo_id, repo_type="dataset", private=kwargs.get("private", False), exist_ok=True)
+            # datasets lists the target data dir before uploading; some hubs return an error
+            # for missing directories on fresh repos, so make sure the directory exists.
+            config_name = kwargs.get("config_name") or "default"
+            data_dir = config_name if config_name != "default" else "data"
+            try:
+                next(api.list_repo_tree(repo_id, repo_type="dataset", path_in_repo=data_dir, recursive=False))
+            except HfHubHTTPError:
+                api.upload_file(
+                    path_or_fileobj=b"",
+                    path_in_repo=f"{data_dir}/.gitkeep",
+                    repo_id=repo_id,
+                    repo_type="dataset",
+                )
+            previous = hf_datasets_config.HF_ENDPOINT
+            hf_datasets_config.HF_ENDPOINT = endpoint
+            try:
+                hfds.push_to_hub(repo_id, **kwargs)
+            finally:
+                hf_datasets_config.HF_ENDPOINT = previous
+        finally:
+            hf_constants.HF_HUB_DISABLE_XET = previous_xet
+
 
     @classmethod
     def from_hub(

@@ -43,7 +43,7 @@ from argilla_server.errors.future import UnprocessableEntityError
 from argilla_server.api.schemas.v1.vector_settings import VectorSettings, VectorSettingsCreate, VectorsSettings
 from argilla_server.api.schemas.v1.jobs import Job as JobSchema
 from argilla_server.contexts import datasets
-from argilla_server.contexts.hub_sources import CSGHubSource, CSGHubError
+from argilla_server.contexts.hub_sources import CSGHubSource, CSGHubError, validate_csghub_repo
 from argilla_server.database import get_async_db
 from argilla_server.enums import DatasetStatus
 from argilla_server.jobs import hub_jobs
@@ -359,6 +359,12 @@ async def export_dataset_to_hub(
     if not await datasets.dataset_has_records(db, dataset):
         raise UnprocessableEntityError(f"Dataset with id `{dataset.id}` has no records to export")
 
+    if hub_dataset.source == "csghub":
+        try:
+            validate_csghub_repo(hub_dataset.name)
+        except CSGHubError as error:
+            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+
     job = hub_jobs.export_dataset_to_hub_job.delay(
         name=hub_dataset.name,
         subset=hub_dataset.subset,
@@ -366,6 +372,7 @@ async def export_dataset_to_hub(
         private=hub_dataset.private,
         token=hub_dataset.token,
         dataset_id=dataset.id,
+        source=hub_dataset.source,
     )
 
     return JobSchema(id=job.id, status=job.get_status())

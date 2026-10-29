@@ -145,3 +145,89 @@ def test_sdk_invalid_limit(maximum):
 def test_sdk_rejects_unknown_provider():
     with pytest.raises(ValueError, match="Unsupported hub source"):
         DatasetDouble.from_hub("owner/repo", source="unknown")
+
+
+class DatasetPushDouble(HubImportExportMixin):
+    def __init__(self, client):
+        self._client = client
+        self.records = Mock()
+        self.records.return_value.to_datasets.return_value = Mock(__len__=Mock(return_value=1))
+        self.to_disk = Mock()
+
+
+def make_push_client():
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        assert request.headers["X-Argilla-Api-Key"] == "argilla-key"
+        assert request.url.host == "argilla.test"
+        if request.url.path.endswith("/resolve"):
+            assert request.url.params["url"] == "https://csghub.test/datasets/owner/repo"
+            return httpx.Response(200, json={"repo_id": "owner/repo", "source": "csghub"})
+        assert request.url.params["source"] == "csghub"
+        assert request.url.path.endswith("/export-target")
+        return httpx.Response(200, json={"source": "csghub", "endpoint": "https://csghub.test"})
+
+    http = httpx.Client(
+        base_url="https://argilla.test",
+        headers={"X-Argilla-Api-Key": "argilla-key"},
+        transport=httpx.MockTransport(handler),
+    )
+    return SimpleNamespace(api=SimpleNamespace(hub=HubAPI(http)), api_url="https://argilla.test"), requests
+
+
+def test_sdk_push_to_csghub_requires_token(mocker):
+    from argilla import Argilla
+
+    client, _ = make_push_client()
+    mocker.patch.object(Argilla, "_get_default", return_value=client)
+
+    dataset = DatasetPushDouble(client)
+    with pytest.raises(ValueError, match="CSGHub access token"):
+        dataset.to_hub("owner/repo", source="csghub", generate_card=False)
+
+
+def test_sdk_push_to_csghub_uses_configured_endpoint(mocker):
+    from argilla import Argilla
+
+    client, requests = make_push_client()
+    mocker.patch.object(Argilla, "_get_default", return_value=client)
+    mock_hf_api = mocker.patch("huggingface_hub.HfApi")
+    mock_hf_api.return_value.list_repo_tree.return_value = iter(
+        [{"path": "data/train-00000-of-00001.parquet", "type": "file"}]
+    )
+    from datasets import config as hf_config
+
+    previous_endpoint = hf_config.HF_ENDPOINT
+
+    dataset = DatasetPushDouble(client)
+    dataset.to_hub("owner/repo", source="csghub", token="csghub-token", generate_card=False)
+    mock_hf_api.return_value.create_repo.assert_called_once()
+    mock_hf_api.return_value.upload_file.assert_not_called()
+
+    assert mock_hf_api.call_args.kwargs["endpoint"] == "https://csghub.test"
+    assert mock_hf_api.call_args.kwargs["token"] == "csghub-token"
+    push_call = dataset.records.return_value.to_datasets.return_value.push_to_hub.call_args
+    assert push_call.args[0] == "owner/repo"
+    assert requests[-1].url.path.endswith("/export-target")
+    from datasets import config as hf_config
+
+    assert hf_config.HF_ENDPOINT == previous_endpoint
+
+
+def test_sdk_push_resolves_complete_csghub_url(mocker):
+    from argilla import Argilla
+
+    client, requests = make_push_client()
+    mocker.patch.object(Argilla, "_get_default", return_value=client)
+    mock_hf_api = mocker.patch("huggingface_hub.HfApi")
+    mock_hf_api.return_value.list_repo_tree.return_value = iter(
+        [{"path": "data/train-00000-of-00001.parquet", "type": "file"}]
+    )
+
+    dataset = DatasetPushDouble(client)
+    dataset.to_hub("https://csghub.test/datasets/owner/repo", token="csghub-token", generate_card=False)
+
+    assert requests[0].url.path.endswith("/resolve")
+    assert mock_hf_api.call_args.kwargs["endpoint"] == "https://csghub.test"

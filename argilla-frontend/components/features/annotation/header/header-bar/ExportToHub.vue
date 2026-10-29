@@ -53,6 +53,22 @@
             v-text="$t('exportToHub.dialogTitle')"
           />
 
+          <div class="export-to-hub__form__group">
+            <label for="hubSource" v-text="$t('exportToHub.source')" />
+            <select
+              id="hubSource"
+              v-model="exportToHubForm.source"
+              class="input export-to-hub__form__select"
+            >
+              <option value="huggingface">
+                {{ $t("exportToHub.sourceHuggingface") }}
+              </option>
+              <option value="csghub">
+                {{ $t("exportToHub.sourceCsghub") }}
+              </option>
+            </select>
+          </div>
+
           <div class="export-to-hub__form__dataset">
             <div class="export-to-hub__form__group --small">
               <div class="export-to-hub__label">
@@ -119,7 +135,11 @@
               type="password"
               autocomplete="one-time-code"
               v-model="exportToHubForm.hfToken"
-              :placeholder="$t('hfToken')"
+              :placeholder="
+                exportToHubForm.source === 'csghub'
+                  ? $t('exportToHub.csghubToken')
+                  : $t('hfToken')
+              "
               @blur="validateForm('hfToken')"
               @input="validateForm('hfToken')"
               aria-required="true"
@@ -304,6 +324,16 @@ export default {
     outline: 0;
     &:focus {
       border: 1px solid var(--bg-action);
+    }
+  }
+
+  select.input {
+    height: 34px;
+    padding: 0 16px;
+    box-shadow: none;
+    cursor: pointer;
+    option {
+      color: #000;
     }
   }
 }

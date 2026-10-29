@@ -20,7 +20,13 @@ from fastapi.responses import Response, JSONResponse
 from huggingface_hub import get_token
 
 from argilla_server.api.policies.v1 import HubPolicy, authorize
-from argilla_server.contexts.hub_sources import CSGHubSource, CSGHubError, HubSource, resolve_dataset_url
+from argilla_server.contexts.hub_sources import (
+    CSGHubError,
+    CSGHubSource,
+    HubSource,
+    csghub_sdk_endpoint,
+    resolve_dataset_url,
+)
 from argilla_server.models import User
 from argilla_server.security import auth
 
@@ -68,6 +74,21 @@ async def _proxy_dataset_viewer(endpoint: str, params: Dict[str, str], source: H
 
 async def _authorize_hub_access(current_user: User) -> None:
     await authorize(current_user, HubPolicy.access())
+
+
+@router.get("/export-target")
+async def get_export_target(
+    source: HubSource = Query("huggingface"),
+    current_user: User = Security(auth.get_current_user),
+) -> dict:
+    """Trusted hub endpoint for pushing datasets back; tokens are never exposed."""
+    await _authorize_hub_access(current_user)
+    if source == "csghub":
+        try:
+            return {"source": source, "endpoint": csghub_sdk_endpoint()}
+        except CSGHubError as error:
+            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+    return {"source": source, "endpoint": "https://huggingface.co"}
 
 
 @router.get("/resolve")

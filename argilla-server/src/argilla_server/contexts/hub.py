@@ -19,6 +19,7 @@ import json
 
 import httpx
 from uuid import uuid4
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional, List
 from typing_extensions import Self
@@ -30,8 +31,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from huggingface_hub import HfApi, DatasetCard, DatasetCardData, get_token
 from datasets import Dataset as HFDataset, NamedSplit, load_dataset, features
+from datasets import config as hf_datasets_config
 
 from argilla_server.contexts import info
+from argilla_server.contexts.hub_sources import csghub_sdk_endpoint
 from argilla_server.database import get_sync_db
 from argilla_server.models.database import Dataset, Record, Field, Question, MetadataProperty, VectorSettings
 from argilla_server.search_engine import SearchEngine
@@ -362,16 +365,63 @@ class HubDatasetExporter:
         # self.cache_version is bypassing the datasets generator cache.
         self.cache_version = uuid4()
 
-    def export_to(self, name: str, subset: str, split: str, private: bool, token: str) -> None:
-        hf_dataset = HFDataset.from_generator(self._rows_generator, split=NamedSplit(split))
-        hf_dataset.push_to_hub(
-            repo_id=name,
-            config_name=subset,
-            private=private,
-            token=token,
-        )
+    @staticmethod
+    @contextmanager
+    def _hf_endpoint(endpoint: Optional[str]):
+        """Route huggingface_hub/datasets uploads through a compatible hub like CSGHub."""
+        if not endpoint:
+            yield
+            return
+        from huggingface_hub import constants as hf_hub_constants
 
-        self._push_extra_files_to_hub(repo_id=name, token=token)
+        previous = hf_datasets_config.HF_ENDPOINT
+        previous_xet = hf_hub_constants.HF_HUB_DISABLE_XET
+        hf_datasets_config.HF_ENDPOINT = endpoint
+        # Xet storage endpoints are not implemented by compatible hubs: keep classic HTTP uploads.
+        hf_hub_constants.HF_HUB_DISABLE_XET = True
+        try:
+            yield
+        finally:
+            hf_datasets_config.HF_ENDPOINT = previous
+            hf_hub_constants.HF_HUB_DISABLE_XET = previous_xet
+
+    def export_to(
+        self, name: str, subset: str, split: str, private: bool, token: str, source: str = "huggingface"
+    ) -> None:
+        endpoint = None
+        if source == "csghub":
+            endpoint = csghub_sdk_endpoint(internal=True)
+
+        with self._hf_endpoint(endpoint):
+            if endpoint:
+                # Hubs like CSGHub answer repo probes with a plain 404, which huggingface_hub
+                # does not translate into RepositoryNotFoundError, so datasets never creates
+                # the repo itself.
+                api = HfApi(token=token, endpoint=endpoint)
+                api.create_repo(name, repo_type="dataset", private=private, exist_ok=True)
+                # datasets lists the target data dir before uploading; some hubs return an
+                # error for missing directories on fresh repos, so make sure it exists.
+                from huggingface_hub.errors import HfHubHTTPError
+
+                data_dir = subset if subset != "default" else "data"
+                try:
+                    next(api.list_repo_tree(name, repo_type="dataset", path_in_repo=data_dir, recursive=False))
+                except HfHubHTTPError:
+                    api.upload_file(
+                        path_or_fileobj=b"",
+                        path_in_repo=f"{data_dir}/.gitkeep",
+                        repo_id=name,
+                        repo_type="dataset",
+                    )
+            hf_dataset = HFDataset.from_generator(self._rows_generator, split=NamedSplit(split))
+            hf_dataset.push_to_hub(
+                repo_id=name,
+                config_name=subset,
+                private=private,
+                token=token,
+            )
+
+            self._push_extra_files_to_hub(repo_id=name, token=token, endpoint=endpoint)
 
     def _rows_generator(self):
         for session in get_sync_db():
@@ -540,8 +590,8 @@ class HubDatasetExporter:
     def _feature_name_for_vector_settings(self, vector_settings: VectorSettings) -> str:
         return f"vector.{vector_settings.name}"
 
-    def _push_extra_files_to_hub(self, repo_id: str, token: str) -> None:
-        hf_api = HfApi(token=token)
+    def _push_extra_files_to_hub(self, repo_id: str, token: str, endpoint: Optional[str] = None) -> None:
+        hf_api = HfApi(token=token, endpoint=endpoint) if endpoint else HfApi(token=token)
 
         with TemporaryDirectory() as temporary_directory:
             argilla_directory = os.path.join(temporary_directory, ".argilla")

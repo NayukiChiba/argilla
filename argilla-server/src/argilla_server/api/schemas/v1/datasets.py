@@ -205,3 +205,4 @@ class HubDatasetExport(BaseModel):
     split: Optional[str] = Field("train", min_length=1)
     private: Optional[bool] = False
     token: str = Field(..., min_length=1)
+    source: Literal["huggingface", "csghub"] = "huggingface"
