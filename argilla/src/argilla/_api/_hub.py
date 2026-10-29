@@ -12,6 +12,12 @@ class HubAPI(ResourceAPI):
         return response.json()
 
     @api_error_handler
+    def export_target(self, source: str = "csghub") -> dict:
+        response = self.http_client.get("/api/v1/hub/datasets/export-target", params={"source": source})
+        response.raise_for_status()
+        return response.json()
+
+    @api_error_handler
     def info(self, repo_id: str, source: str = "huggingface") -> dict:
         response = self.http_client.get("/api/v1/hub/datasets/info", params={"dataset": repo_id, "source": source})
         response.raise_for_status()
