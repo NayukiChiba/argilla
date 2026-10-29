@@ -1,8 +1,9 @@
 import { useResolve } from "ts-injecty";
 import { onBeforeMount, ref, computed, watch } from "vue";
 import { Dataset } from "~/v1/domain/entities/dataset/Dataset";
+import { DatasetExportSource } from "~/v1/domain/entities/dataset/DatasetExport";
 import { ExportDatasetToHubUseCase } from "~/v1/domain/usecases/export-dataset-to-hub-use-case";
-import { JobRepository } from "~/v1/infrastructure/repositories";
+import { HubRepository, JobRepository } from "~/v1/infrastructure/repositories";
 import {
   useDebounce,
   useLocalStorage,
@@ -11,6 +12,12 @@ import {
 
 interface ExportToHubProps {
   dataset: Dataset;
+}
+
+interface DatasetExporting {
+  jobId: string;
+  datasetName: string;
+  source?: DatasetExportSource;
 }
 
 export const useExportToHubViewModel = (props: ExportToHubProps) => {
@@ -27,6 +34,7 @@ export const useExportToHubViewModel = (props: ExportToHubProps) => {
     hfToken: [],
   });
   const exportToHubForm = ref({
+    source: "huggingface" as DatasetExportSource,
     orgOrUsername: "",
     datasetName: "",
     hfToken: "",
@@ -35,6 +43,7 @@ export const useExportToHubViewModel = (props: ExportToHubProps) => {
 
   const exportToHubUseCase = useResolve(ExportDatasetToHubUseCase);
   const jobRepository = useResolve(JobRepository);
+  const hubRepository = useResolve(HubRepository);
 
   const validate = () => {
     const regex = /hf_[A-Za-z0-9]+/i;
@@ -54,8 +63,15 @@ export const useExportToHubViewModel = (props: ExportToHubProps) => {
       );
     }
     if (!exportToHubForm.value.hfToken) {
-      validations.hfToken.push("exportToHub.validations.hfTokenIsRequired");
-    } else if (!regex.test(exportToHubForm.value.hfToken)) {
+      validations.hfToken.push(
+        exportToHubForm.value.source === "csghub"
+          ? "exportToHub.validations.csghubTokenIsRequired"
+          : "exportToHub.validations.hfTokenIsRequired"
+      );
+    } else if (
+      exportToHubForm.value.source === "huggingface" &&
+      !regex.test(exportToHubForm.value.hfToken)
+    ) {
       validations.hfToken.push("exportToHub.validations.hfTokenInvalid");
     }
     return validations;
@@ -75,17 +91,23 @@ export const useExportToHubViewModel = (props: ExportToHubProps) => {
   });
 
   const getDatasetExporting = () =>
-    get<
-      Record<
-        string,
-        {
-          jobId: string;
-          datasetName: string;
-        }
-      >
-    >("datasetExportJobIds") ?? {};
+    get<Record<string, DatasetExporting>>("datasetExportJobIds") ?? {};
 
   const isExporting = ref(!!getDatasetExporting()[dataset.id]);
+
+  const openExportedDataset = async (exported: DatasetExporting) => {
+    if (exported.source === "csghub") {
+      try {
+        const { endpoint } = await hubRepository.getExportTarget("csghub");
+        window.open(`${endpoint}/datasets/${exported.datasetName}`, "_blank");
+        return;
+      } catch {}
+    }
+    window.open(
+      `https://huggingface.co/datasets/${exported.datasetName}`,
+      "_blank"
+    );
+  };
 
   const verifyExportStatus = async () => {
     try {
@@ -94,7 +116,7 @@ export const useExportToHubViewModel = (props: ExportToHubProps) => {
 
       if (!exporting) return;
 
-      const { jobId, datasetName } = exporting;
+      const { jobId, datasetName, source } = exporting;
 
       const job = await jobRepository.getJobStatus(jobId);
 
@@ -111,12 +133,7 @@ export const useExportToHubViewModel = (props: ExportToHubProps) => {
         message: job.isFinished ? "Dataset exported to Hub" : "Export failed",
         buttonText: job.isFinished ? "Go to Hub" : undefined,
         onClick: job.isFinished
-          ? () => {
-              window.open(
-                `https://huggingface.co/datasets/${datasetName}`,
-                "_blank"
-              );
-            }
+          ? () => openExportedDataset({ jobId, datasetName, source })
           : undefined,
         permanent: true,
       });
@@ -141,6 +158,7 @@ export const useExportToHubViewModel = (props: ExportToHubProps) => {
         name: `${exportToHubForm.value.orgOrUsername}/${exportToHubForm.value.datasetName}`,
         isPrivate: exportToHubForm.value.isPrivate,
         hfToken: exportToHubForm.value.hfToken,
+        source: exportToHubForm.value.source,
       });
 
       watchExportStatus();
@@ -152,6 +170,7 @@ export const useExportToHubViewModel = (props: ExportToHubProps) => {
 
   const openDialog = () => {
     exportToHubForm.value = {
+      source: "huggingface",
       orgOrUsername: "",
       datasetName: dataset.name,
       hfToken: "",

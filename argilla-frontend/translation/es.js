@@ -341,6 +341,10 @@ export default {
   },
   exportToHub: {
     dialogTitle: "Exportar dataset a Hugging Face",
+    source: "Hub source",
+    sourceHuggingface: "Hugging Face",
+    sourceCsghub: "CSGHub",
+    csghubToken: "CSGHub token",
     ownerTooltip:
       "Utiliza un nombre de usuario u organización de Hugging Face válidos",
     tokenTooltip: `Utiliza un token de acceso existente o crear un <a href='https://huggingface.co/settings/tokens' target='_blank'>nuevo token</a> con "permiso de escritura"`,
@@ -348,6 +352,7 @@ export default {
       orgOrUsernameIsRequired:
         "El nombre de usuario u organización es requerido",
       hfTokenIsRequired: "El token de Hugging Face es requerido",
+    csghubTokenIsRequired: "CSGHub token is required",
       hfTokenInvalid: "El token de Hugging Face es inválido",
       datasetNameIsRequired: "El nombre del dataset es requerido",
     },

@@ -348,11 +348,16 @@ export default {
   },
   exportToHub: {
     dialogTitle: "Hugging Face Hubにプッシュ",
+    source: "Hub source",
+    sourceHuggingface: "Hugging Face",
+    sourceCsghub: "CSGHub",
+    csghubToken: "CSGHub token",
     ownerTooltip: "有効なHugging Faceのユーザー名または組織を使用してください",
     tokenTooltip: `既存のアクセストークンを使用するか、write権限付きの<a href='https://huggingface.co/settings/tokens' target='_blank'>新しいトークン</a>を作成してください`,
     validations: {
       orgOrUsernameIsRequired: "組織名またはユーザー名は必須です",
       hfTokenIsRequired: "Hugging Faceトークンは必須です",
+    csghubTokenIsRequired: "CSGHub token is required",
       hfTokenInvalid: "Hugging Faceトークンが無効です",
       datasetNameIsRequired: "データセット名は必須です",
     },

@@ -47,6 +47,16 @@ export class HubRepository {
     }
   }
 
+  async getExportTarget(
+    source: HubSource
+  ): Promise<{ source: HubSource; endpoint: string }> {
+    const { data } = await this.axios.get("/v1/hub/datasets/export-target", {
+      params: { source },
+      skipGlobalErrorHandler: true,
+    } as any);
+    return data;
+  }
+
   async getDatasetCreation(
     repoId: string,
     source: HubSource = "huggingface"
